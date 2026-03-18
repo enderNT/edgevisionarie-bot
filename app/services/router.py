@@ -82,10 +82,10 @@ class ClinicIntentRouterService:
 
         encoder_kwargs: dict[str, Any] = {
             "name": self._settings.openai_embedding_model,
-            "api_key": self._settings.openai_api_key,
+            "openai_api_key": self._settings.openai_api_key,
         }
         if self._settings.openai_base_url:
-            encoder_kwargs["base_url"] = self._settings.openai_base_url.rstrip("/")
+            encoder_kwargs["openai_base_url"] = self._settings.openai_base_url.rstrip("/")
         encoder = OpenAIEncoder(**encoder_kwargs)
         routes = [Route(name=item["name"], utterances=item["utterances"], score_threshold=item["score_threshold"]) for item in ROUTE_DEFINITIONS]
         return SemanticRouter(

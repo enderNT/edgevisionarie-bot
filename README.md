@@ -48,7 +48,16 @@ export OPENAI_MODEL="gpt-5-mini"
 uvicorn app.main:create_app --factory --reload
 ```
 
-7. Si vas a usar Qdrant real, configurar `QDRANT_ENABLED=true`, `QDRANT_SIMULATE=false` y apuntar `QDRANT_BASE_URL` al cluster o instancia local. Si no, el flujo RAG usa simulacion controlada y sigue funcionando.
+7. Si necesitas exponer el webhook localmente con `ngrok`, puedes usar:
+
+```bash
+make ngrok
+make webhook-url
+```
+
+Opcionalmente define `NGROK_AUTHTOKEN` y `NGROK_DOMAIN` en `.env` si quieres autenticar el agente o fijar una URL.
+
+8. Si vas a usar Qdrant real, configurar `QDRANT_ENABLED=true`, `QDRANT_SIMULATE=false` y apuntar `QDRANT_BASE_URL` al cluster o instancia local. Si no, el flujo RAG usa simulacion controlada y sigue funcionando.
 
 ## Flujo
 
