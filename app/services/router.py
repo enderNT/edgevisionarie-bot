@@ -34,8 +34,12 @@ ROUTE_DEFINITIONS = [
             "me puedes ayudar",
             "solo queria saludar",
             "tengo una duda corta",
+            "muchas gracias",
+            "entendido",
+            "de acuerdo",
+            "hola buenos dias",
         ],
-        "score_threshold": 0.50,
+        "score_threshold": 0.42,
     },
     {
         "name": "rag",
@@ -48,8 +52,12 @@ ROUTE_DEFINITIONS = [
             "donde estan ubicados",
             "que especialidades manejan",
             "politicas de pago",
+            "cuanto cuesta",
+            "que precio tiene la consulta",
+            "que doctores atienden",
+            "a que hora abren",
         ],
-        "score_threshold": 0.56,
+        "score_threshold": 0.46,
     },
     {
         "name": "appointment_intent",
@@ -62,8 +70,12 @@ ROUTE_DEFINITIONS = [
             "quiero programar una visita",
             "tengo que agendar una cita para manana",
             "quiero una cita el viernes",
+            "me gustaria una cita",
+            "quiero reservar una consulta",
+            "puedo agendar para hoy",
+            "necesito cita con pediatria",
         ],
-        "score_threshold": 0.58,
+        "score_threshold": 0.48,
     },
 ]
 
@@ -104,7 +116,7 @@ class ClinicIntentRouterService:
             substep(
                 "router_prompt_compose",
                 "OK",
-                f"msg_chars={len(user_message)} memories={len(memories)} context_chars={len(clinic_context)}",
+                f"msg_chars={len(user_message)} memories={len(memories)} router_chars={len(router_input)}",
             )
             route_choice = await self._router.acall(router_input)
             route_name = getattr(route_choice, "name", None)
@@ -127,17 +139,53 @@ class ClinicIntentRouterService:
             return self._fallback_route(user_message)
 
     def _build_router_input(self, user_message: str, memories: list[str], clinic_context: str) -> str:
-        sections = [f"Mensaje actual:\n{_compact_text(user_message, max_len=500)}"]
+        sections = [f"Mensaje actual:\n{_compact_text(user_message, max_len=400)}"]
 
-        memory_lines = [_compact_text(memory, max_len=160) for memory in memories[:3] if memory.strip()]
+        memory_lines = [_compact_text(memory, max_len=120) for memory in memories[:2] if memory.strip()]
         if memory_lines:
             sections.append("Memoria relevante del usuario:\n- " + "\n- ".join(memory_lines))
 
-        context_preview = _compact_text(clinic_context, max_len=700)
-        if context_preview:
-            sections.append(f"Contexto clinico resumido:\n{context_preview}")
+        clinic_hints = self._build_clinic_hints(user_message, clinic_context)
+        if clinic_hints:
+            sections.append(f"Referencia clinica:\n{clinic_hints}")
 
         return "\n\n".join(sections)
+
+    def _build_clinic_hints(self, user_message: str, clinic_context: str) -> str:
+        lowered = user_message.lower()
+        if not any(
+            word in lowered
+            for word in ("horario", "horarios", "precio", "costo", "doctor", "doctora", "especialidad", "servicio", "ubicacion", "direccion")
+        ):
+            return ""
+
+        services = self._extract_section_items(clinic_context, "Servicios:", "Doctores:")
+        doctors = self._extract_section_items(clinic_context, "Doctores:", "Horarios:")
+        hours = self._extract_section_items(clinic_context, "Horarios:", "Politicas:")
+
+        hints: list[str] = []
+        if services:
+            hints.append("Servicios: " + "; ".join(services[:3]))
+        if doctors:
+            hints.append("Doctores: " + "; ".join(doctors[:2]))
+        if hours:
+            hints.append("Horarios: " + "; ".join(hours[:2]))
+        return "\n".join(hints)
+
+    def _extract_section_items(self, clinic_context: str, section_start: str, section_end: str) -> list[str]:
+        if section_start not in clinic_context:
+            return []
+
+        section = clinic_context.split(section_start, 1)[1]
+        if section_end in section:
+            section = section.split(section_end, 1)[0]
+
+        items = []
+        for line in section.splitlines():
+            line = line.strip()
+            if line.startswith("- "):
+                items.append(_compact_text(line[2:], max_len=90))
+        return items
 
     def _extract_score(self, route_choice: Any) -> float | None:
         score = getattr(route_choice, "similarity_score", None)
