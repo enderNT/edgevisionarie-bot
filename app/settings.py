@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     openai_embedding_model: str = "text-embedding-3-small"
     openai_timeout_seconds: int = 30
     openai_temperature: float = 0.1
+    semantic_router_debug: bool = False
 
     clinic_config_path: Path = Field(default=Path("config/clinic.json"))
 

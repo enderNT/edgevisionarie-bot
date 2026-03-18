@@ -83,6 +83,7 @@ ROUTE_DEFINITIONS = [
 class ClinicIntentRouterService:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
+        self._debug = settings.semantic_router_debug
         self._router = self._build_router()
 
     def _build_router(self):
@@ -118,6 +119,8 @@ class ClinicIntentRouterService:
                 "OK",
                 f"msg_chars={len(user_message)} memories={len(memories)} router_chars={len(router_input)}",
             )
+            if self._debug:
+                await self._log_route_diagnostics(router_input, user_message)
             route_choice = await self._router.acall(router_input)
             route_name = getattr(route_choice, "name", None)
             score = self._extract_score(route_choice)
@@ -137,6 +140,37 @@ class ClinicIntentRouterService:
             logger.warning("semantic-router failed, using fallback: %s", exc)
             substep("router_fallback", "WARN", "semantic-router error")
             return self._fallback_route(user_message)
+
+    async def _log_route_diagnostics(self, router_input: str, user_message: str) -> None:
+        if self._router is None:
+            return
+
+        try:
+            if not (await self._router.index.ais_ready()):
+                await self._router._async_init_index_state()
+
+            vector = await self._router._async_encode(text=[router_input], input_type="queries")
+            scores, routes = await self._router.index.aquery(vector=vector[0], top_k=self._router.top_k)
+            query_results = [{"route": route, "score": score.item()} for route, score in zip(routes, scores)]
+            scored_routes = self._router._score_routes(query_results=query_results)
+
+            substep("router_input_preview", "OK", _compact_text(user_message, max_len=140))
+            if not scored_routes:
+                substep("router_scores", "WARN", "sin resultados del indice")
+                return
+
+            for route_name, total_score, _ in scored_routes[:3]:
+                route = self._router.check_for_matching_routes(top_class=route_name)
+                threshold = getattr(route, "score_threshold", None) if route is not None else None
+                threshold_text = f"{threshold:.3f}" if isinstance(threshold, (float, int)) else "n/a"
+                passed_text = "pasa" if threshold is None or total_score >= threshold else "no pasa"
+                substep(
+                    "router_scores",
+                    "OK",
+                    f"{route_name}: score={total_score:.3f} threshold={threshold_text} {passed_text}",
+                )
+        except Exception as exc:
+            substep("router_scores", "WARN", f"no pude calcular diagnostico: {type(exc).__name__}: {exc}")
 
     def _build_router_input(self, user_message: str, memories: list[str], clinic_context: str) -> str:
         sections = [f"Mensaje actual:\n{_compact_text(user_message, max_len=400)}"]
