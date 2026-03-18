@@ -96,13 +96,17 @@ class ClinicIntentRouterService:
         )
 
     async def route_intent(self, user_message: str, memories: list[str], clinic_context: str) -> IntentDecision:
-        del memories, clinic_context
         if self._router is None:
             return self._fallback_route(user_message)
 
         try:
-            substep("router_prompt_compose", "OK", f"msg_chars={len(user_message)}")
-            route_choice = await self._router.acall(user_message)
+            router_input = self._build_router_input(user_message, memories, clinic_context)
+            substep(
+                "router_prompt_compose",
+                "OK",
+                f"msg_chars={len(user_message)} memories={len(memories)} context_chars={len(clinic_context)}",
+            )
+            route_choice = await self._router.acall(router_input)
             route_name = getattr(route_choice, "name", None)
             score = self._extract_score(route_choice)
             if not route_name:
@@ -121,6 +125,19 @@ class ClinicIntentRouterService:
             logger.warning("semantic-router failed, using fallback: %s", exc)
             substep("router_fallback", "WARN", "semantic-router error")
             return self._fallback_route(user_message)
+
+    def _build_router_input(self, user_message: str, memories: list[str], clinic_context: str) -> str:
+        sections = [f"Mensaje actual:\n{_compact_text(user_message, max_len=500)}"]
+
+        memory_lines = [_compact_text(memory, max_len=160) for memory in memories[:3] if memory.strip()]
+        if memory_lines:
+            sections.append("Memoria relevante del usuario:\n- " + "\n- ".join(memory_lines))
+
+        context_preview = _compact_text(clinic_context, max_len=700)
+        if context_preview:
+            sections.append(f"Contexto clinico resumido:\n{context_preview}")
+
+        return "\n\n".join(sections)
 
     def _extract_score(self, route_choice: Any) -> float | None:
         score = getattr(route_choice, "similarity_score", None)
@@ -147,3 +164,10 @@ class ClinicIntentRouterService:
         if any(word in lowered for word in rag_keywords):
             return IntentDecision(intent="rag", confidence=0.60, reason="heuristic-fallback")
         return IntentDecision(intent="conversation", confidence=0.55, reason="heuristic-fallback")
+
+
+def _compact_text(value: str, max_len: int) -> str:
+    compact = " ".join(value.split())
+    if len(compact) <= max_len:
+        return compact
+    return f"{compact[: max_len - 3]}..."

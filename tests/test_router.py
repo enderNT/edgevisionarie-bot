@@ -27,3 +27,19 @@ def test_router_falls_back_to_conversation_without_semantic_router():
 
     assert decision.intent == "conversation"
     assert decision.confidence >= 0.5
+
+
+def test_router_builds_enriched_input_with_memories_and_context():
+    service = ClinicIntentRouterService(Settings(openai_api_key=None))
+
+    router_input = service._build_router_input(
+        "Quiero una cita para manana",
+        ["Prefiere horario vespertino", "Ya fue paciente de dermatologia"],
+        "Clinica: Central\nHorarios: lunes a viernes de 9 a 18\nServicios: dermatologia y medicina general",
+    )
+
+    assert "Mensaje actual:" in router_input
+    assert "Memoria relevante del usuario:" in router_input
+    assert "Contexto clinico resumido:" in router_input
+    assert "Prefiere horario vespertino" in router_input
+    assert "Clinica: Central" in router_input

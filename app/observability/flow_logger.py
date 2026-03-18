@@ -20,6 +20,7 @@ _BLUE = "\033[34m"
 _GREEN = "\033[32m"
 _YELLOW = "\033[33m"
 _RED = "\033[31m"
+_SEPARATOR = "-" * 72
 
 _STEP_LABELS = {
     "webhook_received": "Webhook recibido",
@@ -84,6 +85,7 @@ def clear_flow() -> None:
 
 def start_flow(message_preview: str) -> None:
     logger.info("")
+    logger.info(f"{_DIM}{_SEPARATOR}{_RESET}")
     logger.info(f"{_BOLD}{_CYAN}Flujo {_flow_id_var.get()}{_RESET}  {_DIM}Conversacion {_conversation_id_var.get()}{_RESET}")
     logger.info(f"{_BLUE}Mensaje{_RESET}  {_safe_preview(message_preview)}")
 
@@ -94,6 +96,7 @@ def end_flow(status: str, detail: str = "") -> None:
     suffix = f"{detail} | elapsed={elapsed_ms}ms" if detail else f"elapsed={elapsed_ms}ms"
     color = _status_color(status)
     logger.info(f"{color}{_BOLD}Resultado {status}{_RESET}  {suffix}")
+    logger.info(f"{_DIM}{_SEPARATOR}{_RESET}")
 
 
 def step(name: str, status: str = "RUN", detail: str = "") -> None:
