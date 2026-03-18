@@ -23,6 +23,13 @@ def build_webhook_router(agent_service: ClinicAgentService) -> APIRouter:
             "OK",
             f"flow={flow_id} conv={payload.conversation_id} contact={payload.contact_id}",
         )
+        if not payload.is_incoming_message_event:
+            substep(
+                "webhook_payload_validated",
+                "OK",
+                f"ignorado event={payload.event or 'n/a'} message_type={payload.message_type or 'n/a'}",
+            )
+            return {"status": "ignored", "conversation_id": payload.conversation_id}
         substep("webhook_payload_validated", "RUN", "validando contenido util")
         if not payload.latest_message:
             substep("webhook_payload_validated", "ERROR", "sin contenido procesable")

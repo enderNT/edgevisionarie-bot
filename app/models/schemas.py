@@ -89,6 +89,13 @@ class ChatwootWebhook(BaseModel):
         return str(raw) if raw is not None else None
 
     @property
+    def is_incoming_message_event(self) -> bool:
+        return (
+            (self.event or "").strip().lower() == "message_created"
+            and (self.message_type or "").strip().lower() == "incoming"
+        )
+
+    @property
     def contact_id(self) -> str:
         raw = self.contact.get("id") or self.sender.get("id") or self.meta.get("sender", {}).get("id") or "unknown-contact"
         return str(raw)
