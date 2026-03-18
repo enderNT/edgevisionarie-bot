@@ -6,6 +6,7 @@ from fastapi import FastAPI
 
 from app.graph.workflow import ClinicWorkflow
 from app.observability.flow_logger import configure_flow_logger
+from app.observability.router_input_logger import configure_router_input_logger
 from app.services.agent import ClinicAgentService
 from app.services.chatwoot import ChatwootClient
 from app.services.clinic_config import ClinicConfigLoader
@@ -25,6 +26,7 @@ def create_app() -> FastAPI:
         datefmt="%Y-%m-%d %H:%M:%S",
     )
     configure_flow_logger(getattr(logging, settings.log_level.upper(), logging.INFO))
+    configure_router_input_logger(settings.router_input_debug)
 
     clinic_config_loader = ClinicConfigLoader(settings.clinic_config_path)
     openai_client = OpenAIClient(settings)

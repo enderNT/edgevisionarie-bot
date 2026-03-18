@@ -42,6 +42,12 @@ export OPENAI_API_KEY="..."
 export OPENAI_MODEL="gpt-5-mini"
 ```
 
+Si quieres ver el `router_input` completo en logs, activa:
+
+```bash
+export ROUTER_INPUT_DEBUG=true
+```
+
 6. Ejecutar la API:
 
 ```bash

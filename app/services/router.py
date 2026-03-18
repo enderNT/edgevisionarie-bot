@@ -5,6 +5,7 @@ from typing import Any
 
 from app.models.schemas import IntentDecision
 from app.observability.flow_logger import substep
+from app.observability.router_input_logger import log_router_input
 from app.settings import Settings
 
 logger = logging.getLogger(__name__)
@@ -119,6 +120,7 @@ class ClinicIntentRouterService:
                 "OK",
                 f"msg_chars={len(user_message)} memories={len(memories)} router_chars={len(router_input)}",
             )
+            log_router_input(router_input)
             if self._debug:
                 await self._log_route_diagnostics(router_input, user_message)
             route_choice = await self._router.acall(router_input)

@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     openai_timeout_seconds: int = 30
     openai_temperature: float = 0.1
     semantic_router_debug: bool = False
+    router_input_debug: bool = False
 
     clinic_config_path: Path = Field(default=Path("config/clinic.json"))
 
