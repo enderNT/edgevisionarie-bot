@@ -51,9 +51,13 @@ class FakeMemoryStore:
 
 
 class FakeQdrantService:
+    def __init__(self):
+        self.calls = 0
+
     async def build_context(self, *args, **kwargs):
+        self.calls += 1
         del args, kwargs
-        return ""
+        return "Contexto RAG simulado"
 
 
 def build_webhook(message: str) -> ChatwootWebhook:
@@ -66,12 +70,13 @@ def build_webhook(message: str) -> ChatwootWebhook:
 
 def test_workflow_routes_to_conversation():
     memory = FakeMemoryStore()
+    qdrant = FakeQdrantService()
     workflow = ClinicWorkflow(
         FakeRouterService(),
         FakeLLMService(),
         memory,
         ClinicConfigLoader(config_path="config/clinic.json"),  # type: ignore[arg-type]
-        FakeQdrantService(),
+        qdrant,
     )
 
     result = asyncio.run(workflow.run(build_webhook("Cuales son sus servicios?")))
@@ -79,17 +84,19 @@ def test_workflow_routes_to_conversation():
     assert result["intent"] == "conversation"
     assert result["response_text"] == "Respuesta para: Cuales son sus servicios?"
     assert result["handoff_required"] is False
+    assert qdrant.calls == 0
     assert memory.saved
 
 
 def test_workflow_routes_to_rag():
     memory = FakeMemoryStore()
+    qdrant = FakeQdrantService()
     workflow = ClinicWorkflow(
         FakeRouterService(),
         FakeLLMService(),
         memory,
         ClinicConfigLoader(config_path="config/clinic.json"),  # type: ignore[arg-type]
-        FakeQdrantService(),
+        qdrant,
     )
 
     result = asyncio.run(workflow.run(build_webhook("Cuales son sus horarios?")))
@@ -97,17 +104,19 @@ def test_workflow_routes_to_rag():
     assert result["intent"] == "rag"
     assert result["response_text"] == "RAG para: Cuales son sus horarios?"
     assert result["handoff_required"] is False
+    assert qdrant.calls == 1
     assert memory.saved
 
 
 def test_workflow_routes_to_appointment():
     memory = FakeMemoryStore()
+    qdrant = FakeQdrantService()
     workflow = ClinicWorkflow(
         FakeRouterService(),
         FakeLLMService(),
         memory,
         ClinicConfigLoader(config_path="config/clinic.json"),  # type: ignore[arg-type]
-        FakeQdrantService(),
+        qdrant,
     )
 
     result = asyncio.run(workflow.run(build_webhook("Quiero una cita de medicina general manana a las 10 am")))
@@ -115,4 +124,5 @@ def test_workflow_routes_to_appointment():
     assert result["intent"] == "appointment_intent"
     assert result["handoff_required"] is True
     assert result["appointment_payload"]["preferred_time"] == "10 am"
+    assert qdrant.calls == 0
     assert memory.saved

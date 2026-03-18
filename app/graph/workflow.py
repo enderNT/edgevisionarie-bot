@@ -91,13 +91,6 @@ class ClinicWorkflow:
                 limit=5,
             )
             substep("mem0_lookup", "OK", f"memories={len(memories)}")
-            rag_context = await self._qdrant_service.build_context(
-                query=webhook.latest_message or "contexto del usuario",
-                contact_id=webhook.contact_id,
-                clinic_context=clinic_context,
-                memories=memories,
-            )
-            substep("qdrant_lookup", "OK", "contexto vectorial simulado/preparado")
             step("2.1 build_context", "OK")
             return {
                 "conversation_id": webhook.conversation_id,
@@ -106,7 +99,6 @@ class ClinicWorkflow:
                 "user_message": webhook.latest_message,
                 "clinic_context": clinic_context,
                 "memories": memories,
-                "rag_context": rag_context,
             }
         except Exception as exc:
             mark_error("2.1 build_context", exc)
@@ -168,14 +160,22 @@ class ClinicWorkflow:
 
     async def _rag(self, state: GraphState) -> GraphState:
         try:
-            step("3.b.1 rag_node", "RUN", "preparando contexto qdrant simulado")
+            step("3.b.1 rag_node", "RUN", "consultando contexto RAG")
+            rag_context = await self._qdrant_service.build_context(
+                query=state["user_message"] or "contexto del usuario",
+                contact_id=state["contact_id"],
+                clinic_context=state["clinic_context"],
+                memories=state.get("memories", []),
+            )
+            substep("qdrant_lookup", "OK", "contexto vectorial preparado")
             response_text = await self._llm_service.build_rag_reply(
                 user_message=state["user_message"],
                 memories=state.get("memories", []),
-                clinic_context=state.get("rag_context", state["clinic_context"]),
+                clinic_context=rag_context,
             )
             step("3.b.1 rag_node", "OK", f"chars={len(response_text)}")
             return {
+                "rag_context": rag_context,
                 "response_text": response_text,
                 "handoff_required": False,
                 "appointment_payload": {},
