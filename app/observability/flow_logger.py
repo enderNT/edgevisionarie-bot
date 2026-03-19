@@ -46,6 +46,7 @@ _STEP_LABELS = {
     "store_memory": "Guardando en memoria",
     "outbound_response": "Enviando respuesta a Chatwoot",
     "llm_chat_completion": "Consultando proveedor LLM",
+    "llm_json_schema_retry": "Reintentando JSON compatible",
     "conversation_prompt_compose": "Preparando respuesta general",
     "conversation_fallback": "Usando respuesta general de respaldo",
     "rag_prompt_compose": "Preparando respuesta con contexto",

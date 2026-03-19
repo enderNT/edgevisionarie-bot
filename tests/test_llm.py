@@ -1,4 +1,6 @@
 import pytest
+import httpx
+from openai import BadRequestError
 
 from app.models.schemas import RoutingPacket
 from app.services.llm import ClinicLLMService, OpenAICompatibleProvider, build_llm_provider
@@ -89,6 +91,58 @@ def test_openai_compatible_provider_omits_temperature_for_gpt5_models():
     )
 
     assert "temperature" not in request_kwargs
+
+
+@pytest.mark.asyncio
+async def test_openai_compatible_provider_retries_with_json_schema():
+    provider = OpenAICompatibleProvider(Settings(llm_model="local-model"))
+    calls = []
+
+    class FakeCompletions:
+        async def create(self, **kwargs):
+            calls.append(kwargs)
+            response_format = kwargs["response_format"]["type"]
+            if response_format == "json_object":
+                raise BadRequestError(
+                    message="Error code: 400 - {'error': \"'response_format.type' must be 'json_schema' or 'text'\"}",
+                    response=httpx.Response(
+                        400,
+                        request=httpx.Request("POST", "http://127.0.0.1:1234/v1/chat/completions"),
+                    ),
+                    body={
+                        "error": "'response_format.type' must be 'json_schema' or 'text'",
+                    },
+                )
+            return type(
+                "Response",
+                (),
+                {
+                    "choices": [
+                        type(
+                            "Choice",
+                            (),
+                            {
+                                "message": type(
+                                    "Message",
+                                    (),
+                                    {"content": '{"next_node":"conversation"}'},
+                                )()
+                            },
+                        )()
+                    ]
+                },
+            )()
+
+    provider._client = type(
+        "FakeClient",
+        (),
+        {"chat": type("FakeChat", (), {"completions": FakeCompletions()})()},
+    )()
+
+    payload = await provider.chat_json([{"role": "user", "content": "hola"}])
+
+    assert payload == {"next_node": "conversation"}
+    assert [call["response_format"]["type"] for call in calls] == ["json_object", "json_schema"]
 
 
 @pytest.mark.asyncio

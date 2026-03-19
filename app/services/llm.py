@@ -97,16 +97,40 @@ class OpenAICompatibleProvider:
             "RUN",
             f"provider={self.provider_name} model={self.model_name} json_mode=True",
         )
+        request_kwargs = self._chat_request_kwargs(messages=messages, temperature=temperature)
+        request_kwargs["response_format"] = {"type": "json_object"}
         try:
-            request_kwargs = self._chat_request_kwargs(messages=messages, temperature=temperature)
-            request_kwargs["response_format"] = {"type": "json_object"}
             response = await self._client.chat.completions.create(**request_kwargs)
             content = (response.choices[0].message.content or "").strip()
             step("2.2.1 llm_chat_completion", "OK", f"response_chars={len(content)}")
             return _extract_json(content)
         except Exception as exc:
+            if _should_retry_with_json_schema(exc):
+                substep("llm_json_schema_retry", "WARN", "fallback a response_format=json_schema")
+                response = await self._client.chat.completions.create(
+                    **self._json_schema_request_kwargs(messages=messages, temperature=temperature),
+                )
+                content = (response.choices[0].message.content or "").strip()
+                step("2.2.1 llm_chat_completion", "OK", f"response_chars={len(content)}")
+                return _extract_json(content)
             mark_error("2.2.1 llm_chat_completion", exc)
             raise
+
+    def _json_schema_request_kwargs(
+        self, messages: list[LLMMessage], temperature: float | None = None
+    ) -> dict[str, Any]:
+        request_kwargs = self._chat_request_kwargs(messages=messages, temperature=temperature)
+        request_kwargs["response_format"] = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "structured_output",
+                "schema": {
+                    "type": "object",
+                    "additionalProperties": True,
+                },
+            },
+        }
+        return request_kwargs
 
 
 def build_llm_provider(settings: Settings) -> LLMProvider:
@@ -419,3 +443,8 @@ def _extract_json(content: str) -> dict[str, Any]:
         if not match:
             raise
         return json.loads(match.group(0))
+
+
+def _should_retry_with_json_schema(exc: Exception) -> bool:
+    message = str(exc).lower()
+    return "response_format.type" in message and "json_schema" in message
