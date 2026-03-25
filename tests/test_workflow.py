@@ -1,8 +1,8 @@
 import asyncio
 
-from app.graph.workflow import ClinicWorkflow
-from app.models.schemas import AppointmentIntentPayload, ChatwootWebhook, StateRoutingDecision
-from app.services.clinic_config import ClinicConfigLoader
+from app.graph.workflow import SupportWorkflow
+from app.models.schemas import ChatwootWebhook, DiscoveryCallIntentPayload, StateRoutingDecision
+from app.services.company_config import CompanyConfigLoader
 from app.services.router import StateRoutingService
 from app.settings import Settings
 
@@ -14,16 +14,16 @@ class FakeLLMService:
     async def classify_state_route(self, routing_packet, guard_hint=None):
         del guard_hint
         message = routing_packet.user_message.lower()
-        if "cita" in message or routing_packet.active_goal == "appointment":
+        if "llamada" in message or routing_packet.active_goal == "discovery_call":
             return StateRoutingDecision(
-                next_node="appointment",
-                intent="appointment",
+                next_node="discovery_call",
+                intent="discovery_call",
                 confidence=0.9,
                 needs_retrieval=False,
-                state_update={"active_goal": "appointment", "stage": "collecting_slots"},
+                state_update={"active_goal": "discovery_call", "stage": "collecting_slots"},
                 reason="test",
             )
-        if "horario" in message or "precio" in message:
+        if "horario" in message or "precio" in message or "servicios" in message:
             return StateRoutingDecision(
                 next_node="rag",
                 intent="rag",
@@ -45,25 +45,25 @@ class FakeLLMService:
         del memories
         return f"Respuesta para: {user_message}"
 
-    async def build_rag_reply(self, user_message, memories, clinic_context):
-        del memories, clinic_context
+    async def build_rag_reply(self, user_message, memories, company_context):
+        del memories, company_context
         return f"RAG para: {user_message}"
 
-    async def extract_appointment_intent(
-        self, user_message, memories, clinic_context, contact_name, current_slots=None, pending_question=None
+    async def extract_discovery_call_intent(
+        self, user_message, memories, company_context, contact_name, current_slots=None, pending_question=None
     ):
-        del memories, clinic_context, contact_name, pending_question
+        del memories, company_context, contact_name, pending_question
         current_slots = current_slots or {}
-        payload = AppointmentIntentPayload(
-            patient_name=current_slots.get("patient_name", "Juan Perez"),
-            reason=current_slots.get("reason", "medicina general"),
+        payload = DiscoveryCallIntentPayload(
+            lead_name=current_slots.get("lead_name", "Juan Perez"),
+            project_need=current_slots.get("project_need", "automatizacion"),
             preferred_date="manana" if "manana" in user_message.lower() else current_slots.get("preferred_date"),
             preferred_time="10 am" if "10" in user_message else current_slots.get("preferred_time"),
             missing_fields=[] if ("manana" in user_message.lower() and "10" in user_message) else ["preferred_time"],
             should_handoff=True,
             confidence=0.9,
         )
-        return payload, f"Solicitud lista: {user_message}"
+        return payload, f"Discovery call lista: {user_message}"
 
     async def build_state_summary(self, current_summary, user_message, assistant_message, active_goal, stage):
         self.summary_calls += 1
@@ -107,11 +107,11 @@ def build_workflow():
     router = StateRoutingService(Settings(llm_api_key=None, openai_api_key=None), llm)
     memory = FakeMemoryStore()
     qdrant = FakeQdrantService()
-    workflow = ClinicWorkflow(
+    workflow = SupportWorkflow(
         router,
         llm,
         memory,
-        ClinicConfigLoader(config_path="config/clinic.json"),  # type: ignore[arg-type]
+        CompanyConfigLoader(config_path="config/company.json"),  # type: ignore[arg-type]
         qdrant,
         Settings(),
     )
@@ -121,10 +121,10 @@ def build_workflow():
 def test_workflow_routes_to_conversation():
     workflow, memory, qdrant, llm = build_workflow()
 
-    result = asyncio.run(workflow.run(build_webhook("Necesito informacion general sobre la clinica")))
+    result = asyncio.run(workflow.run(build_webhook("Necesito informacion general sobre Metaedgevisionaries")))
 
     assert result["next_node"] == "conversation"
-    assert result["response_text"] == "Respuesta para: Necesito informacion general sobre la clinica"
+    assert result["response_text"] == "Respuesta para: Necesito informacion general sobre Metaedgevisionaries"
     assert result["handoff_required"] is False
     assert qdrant.calls == 0
     assert memory.saved
@@ -143,18 +143,18 @@ def test_workflow_routes_to_rag():
     assert memory.saved
 
 
-def test_workflow_keeps_appointment_state_across_turns():
+def test_workflow_keeps_discovery_call_state_across_turns():
     workflow, memory, qdrant, llm = build_workflow()
     conversation_id = 777
 
-    first = asyncio.run(workflow.run(build_webhook("Quiero una cita", conversation_id=conversation_id)))
+    first = asyncio.run(workflow.run(build_webhook("Quiero agendar una llamada", conversation_id=conversation_id)))
     second = asyncio.run(workflow.run(build_webhook("manana a las 10", conversation_id=conversation_id)))
 
-    assert first["next_node"] == "appointment"
+    assert first["next_node"] == "discovery_call"
     assert first["stage"] == "collecting_slots"
-    assert second["next_node"] == "appointment"
+    assert second["next_node"] == "discovery_call"
     assert second["stage"] == "ready_for_handoff"
-    assert second["appointment_slots"]["preferred_time"] == "10 am"
+    assert second["discovery_call_slots"]["preferred_time"] == "10 am"
     assert qdrant.calls == 0
     assert memory.saved
     assert llm.summary_calls >= 1

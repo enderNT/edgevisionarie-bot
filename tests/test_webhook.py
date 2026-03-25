@@ -27,7 +27,7 @@ def test_chatwoot_webhook_accepts_immediately(monkeypatch):
     payload = {
         "event": "message_created",
         "message_type": "incoming",
-        "content": "Necesito una cita",
+        "content": "Necesito agendar una llamada",
         "conversation": {"id": 321},
         "contact": {"id": 654, "name": "Maria"},
     }

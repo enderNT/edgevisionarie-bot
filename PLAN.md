@@ -24,7 +24,7 @@ Defaults cerrados para esta versión:
   - `stage`
   - `pending_action`
   - `pending_question`
-  - `appointment_slots`
+  - `discovery_call_slots`
   - `conversation_summary`
   - `last_tool_result`
   - `last_user_message`
@@ -73,10 +73,10 @@ Defaults cerrados para esta versión:
   - se ejecuta solo si `next_node=rag` o si el clasificador marca `needs_retrieval=true`
   - guarda solo un resumen corto del resultado en `last_tool_result`
   - no deja contexto viejo colgando en el estado
-- **appointment**:
+- **discovery_call**:
   - captura slots por turnos
   - mantiene `pending_question` si falta información
-  - completa o limpia `appointment_slots` según avance el flujo
+  - completa o limpia `discovery_call_slots` según avance el flujo
 - Cada nodo actualiza **estado corto** de forma determinista.
 - La escritura a **mem0** ocurre solo cuando un hecho merece memoria duradera.
 
@@ -89,7 +89,7 @@ Defaults cerrados para esta versión:
 - Limpiar explícitamente:
   - `last_tool_result` cuando ya no aplique
   - `pending_action` cuando se resuelva
-  - slots temporales cuando la cita termine o se cancele
+  - slots temporales cuando la discovery call termine o se cancele
 
 ## APIs, tipos y contratos a ajustar
 - Mantener `ChatwootWebhook` y la interfaz externa del webhook.
@@ -100,13 +100,13 @@ Defaults cerrados para esta versión:
 - Mantener settings de mem0 y añadir solo lo necesario para control de summary y del clasificador de estado.
 
 ## Plan de pruebas
-- Una pregunta institucional entra a `rag`, luego el usuario dice “quiero agendar una cita” y el siguiente turno entra a `appointment`.
-- Respuestas elípticas como “sí”, “mañana”, “a las 10” permanecen en `appointment` si hay slots pendientes.
-- Un flujo activo de cita no se rompe por una respuesta corta.
+- Una pregunta institucional entra a `rag`, luego el usuario dice “quiero agendar una llamada” y el siguiente turno entra a `discovery_call`.
+- Respuestas elípticas como “sí”, “mañana”, “a las 10” permanecen en `discovery_call` si hay slots pendientes.
+- Un flujo activo de discovery call no se rompe por una respuesta corta.
 - RAG no se ejecuta si el estado no lo pide.
 - El router ya no depende de similarity del último mensaje.
 - mem0 solo guarda recuerdos útiles y no el chat completo.
-- El proyecto funciona sin `semantic-router` y sus tests cubren `conversation`, `rag`, `appointment`, continuidad y follow-ups.
+- El proyecto funciona sin `semantic-router` y sus tests cubren `conversation`, `rag`, `discovery_call`, continuidad y follow-ups.
 
 ## Supuestos y defaults
 - `conversation_id` será el hilo oficial para estado corto.

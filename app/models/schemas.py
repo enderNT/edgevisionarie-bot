@@ -5,9 +5,9 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class AppointmentIntentPayload(BaseModel):
-    patient_name: str | None = None
-    reason: str | None = None
+class DiscoveryCallIntentPayload(BaseModel):
+    lead_name: str | None = None
+    project_need: str | None = None
     preferred_date: str | None = None
     preferred_time: str | None = None
     missing_fields: list[str] = Field(default_factory=list)
@@ -22,7 +22,7 @@ class RoutingPacket(BaseModel):
     stage: str = ""
     pending_action: str = ""
     pending_question: str = ""
-    appointment_slots: dict[str, Any] = Field(default_factory=dict)
+    discovery_call_slots: dict[str, Any] = Field(default_factory=dict)
     last_tool_result: str = ""
     last_user_message: str = ""
     last_assistant_message: str = ""
@@ -30,7 +30,7 @@ class RoutingPacket(BaseModel):
 
 
 class StateRoutingDecision(BaseModel):
-    next_node: Literal["conversation", "rag", "appointment"] = "conversation"
+    next_node: Literal["conversation", "rag", "discovery_call"] = "conversation"
     intent: str = "conversation"
     confidence: float = 0.0
     needs_retrieval: bool = False
@@ -43,7 +43,7 @@ class RouteStateUpdate(BaseModel):
     stage: str | None = None
     pending_action: str | None = None
     pending_question: str | None = None
-    appointment_slots: dict[str, Any] | None = None
+    discovery_call_slots: dict[str, Any] | None = None
     conversation_summary: str | None = None
     last_tool_result: str | None = None
     last_user_message: str | None = None
@@ -52,7 +52,7 @@ class RouteStateUpdate(BaseModel):
     clear_last_tool_result: bool = False
     clear_pending_action: bool = False
     clear_pending_question: bool = False
-    clear_appointment_slots: bool = False
+    clear_discovery_call_slots: bool = False
 
 
 class MemoryRecord(BaseModel):
@@ -62,40 +62,42 @@ class MemoryRecord(BaseModel):
 
 
 class GraphTurnOutcome(BaseModel):
-    next_node: Literal["conversation", "rag", "appointment"] = "conversation"
+    next_node: Literal["conversation", "rag", "discovery_call"] = "conversation"
     response_text: str = ""
     intent: str = "conversation"
     confidence: float = 0.0
     needs_retrieval: bool = False
     handoff_required: bool = False
-    appointment_payload: dict[str, Any] = Field(default_factory=dict)
+    discovery_call_payload: dict[str, Any] = Field(default_factory=dict)
     routing_reason: str = ""
 
 
-class ClinicConfig(BaseModel):
-    clinic_name: str
+class CompanyConfig(BaseModel):
+    company_name: str
     timezone: str
     services: list[dict[str, Any]] = Field(default_factory=list)
-    doctors: list[dict[str, Any]] = Field(default_factory=list)
+    team: list[dict[str, Any]] = Field(default_factory=list)
     hours: dict[str, str] = Field(default_factory=dict)
     policies: dict[str, str] = Field(default_factory=dict)
 
     def to_context_text(self) -> str:
         services = "\n".join(
-            f"- {service.get('name')}: {service.get('duration_minutes', 'N/D')} min, {service.get('price', 'N/D')}"
+            f"- {service.get('name')}: {service.get('summary', 'Sin resumen')}. "
+            f"Entrega estimada: {service.get('delivery_window', 'N/D')}. "
+            f"Desde {service.get('starting_price', 'N/D')}"
             for service in self.services
         )
-        doctors = "\n".join(
-            f"- {doctor.get('name')} ({doctor.get('specialty')}): {doctor.get('availability_notes', 'Sin nota')}"
-            for doctor in self.doctors
+        team = "\n".join(
+            f"- {member.get('name')} ({member.get('role')}): {member.get('availability_notes', 'Sin nota')}"
+            for member in self.team
         )
         hours = "\n".join(f"- {day}: {schedule}" for day, schedule in self.hours.items())
         policies = "\n".join(f"- {name}: {value}" for name, value in self.policies.items())
         return (
-            f"Clinica: {self.clinic_name}\n"
+            f"Empresa: {self.company_name}\n"
             f"Zona horaria: {self.timezone}\n"
             f"Servicios:\n{services or '- Sin servicios'}\n"
-            f"Doctores:\n{doctors or '- Sin doctores'}\n"
+            f"Equipo:\n{team or '- Sin equipo'}\n"
             f"Horarios:\n{hours or '- Sin horarios'}\n"
             f"Politicas:\n{policies or '- Sin politicas'}"
         )
@@ -157,7 +159,7 @@ class ChatwootWebhook(BaseModel):
             self.contact.get("name")
             or self.sender.get("name")
             or self.meta.get("sender", {}).get("name")
-            or "Paciente"
+            or "Cliente"
         )
 
     @property

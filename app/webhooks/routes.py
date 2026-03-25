@@ -7,12 +7,12 @@ from fastapi import APIRouter, HTTPException, status
 
 from app.models.schemas import ChatwootWebhook
 from app.observability.flow_logger import new_flow_id, step, substep
-from app.services.agent import ClinicAgentService
+from app.services.assistant_service import AssistantService
 
 logger = logging.getLogger(__name__)
 
 
-def build_webhook_router(agent_service: ClinicAgentService) -> APIRouter:
+def build_webhook_router(agent_service: AssistantService) -> APIRouter:
     router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
     @router.post("/chatwoot", status_code=status.HTTP_202_ACCEPTED)
@@ -46,7 +46,7 @@ def build_webhook_router(agent_service: ClinicAgentService) -> APIRouter:
     return router
 
 
-async def _safe_process(agent_service: ClinicAgentService, payload: ChatwootWebhook, flow_id: str) -> None:
+async def _safe_process(agent_service: AssistantService, payload: ChatwootWebhook, flow_id: str) -> None:
     try:
         await agent_service.process_webhook(payload, flow_id=flow_id)
     except Exception as exc:  # pragma: no cover - logging defensivo

@@ -1,1 +1,1 @@
-"""Clinica assistant application package."""
+"""Metaedgevisionaries assistant application package."""

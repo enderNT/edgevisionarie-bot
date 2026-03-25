@@ -4,12 +4,12 @@ import logging
 
 from fastapi import FastAPI
 
-from app.graph.workflow import ClinicWorkflow
+from app.graph.workflow import SupportWorkflow
 from app.observability.flow_logger import configure_flow_logger
-from app.services.agent import ClinicAgentService
+from app.services.assistant_service import AssistantService
 from app.services.chatwoot import ChatwootClient
-from app.services.clinic_config import ClinicConfigLoader
-from app.services.llm import ClinicLLMService, build_llm_provider
+from app.services.company_config import CompanyConfigLoader
+from app.services.llm import SupportLLMService, build_llm_provider
 from app.services.memory import build_memory_store
 from app.services.router import StateRoutingService
 from app.services.qdrant import QdrantRetrievalService
@@ -26,16 +26,23 @@ def create_app() -> FastAPI:
     )
     configure_flow_logger(getattr(logging, settings.log_level.upper(), logging.INFO))
 
-    clinic_config_loader = ClinicConfigLoader(settings.clinic_config_path)
+    company_config_loader = CompanyConfigLoader(settings.company_config_path)
     llm_provider = build_llm_provider(settings)
-    llm_service = ClinicLLMService(llm_provider)
+    llm_service = SupportLLMService(llm_provider)
     router_service = StateRoutingService(settings, llm_service)
     memory_store = build_memory_store(settings)
     qdrant_service = QdrantRetrievalService(settings)
-    workflow = ClinicWorkflow(router_service, llm_service, memory_store, clinic_config_loader, qdrant_service, settings)
-    agent_service = ClinicAgentService(workflow, ChatwootClient(settings))
+    workflow = SupportWorkflow(
+        router_service,
+        llm_service,
+        memory_store,
+        company_config_loader,
+        qdrant_service,
+        settings,
+    )
+    agent_service = AssistantService(workflow, ChatwootClient(settings))
 
-    app = FastAPI(title="Clinica Assistant", version="0.1.0")
+    app = FastAPI(title="Metaedgevisionaries Assistant", version="0.1.0")
     app.include_router(build_webhook_router(agent_service))
 
     @app.get("/health")

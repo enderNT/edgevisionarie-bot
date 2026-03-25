@@ -1,0 +1,41 @@
+{
+  "company_name": "Metaedgevisionaries",
+  "timezone": "America/Mexico_City",
+  "services": [
+    {
+      "name": "Desarrollo de software a medida",
+      "summary": "Diseno, desarrollo y evolucion de plataformas web, moviles y backoffice.",
+      "delivery_window": "6 a 16 semanas",
+      "starting_price": "Desde 60,000 MXN"
+    },
+    {
+      "name": "Automatizacion e IA aplicada",
+      "summary": "Automatizacion de procesos, agentes conversacionales, integraciones y flujos con IA.",
+      "delivery_window": "2 a 8 semanas",
+      "starting_price": "Desde 18,000 MXN"
+    }
+  ],
+  "team": [
+    {
+      "name": "Andrea Torres",
+      "role": "Strategy & Discovery",
+      "availability_notes": "Lunes a viernes de 09:00 a 17:00"
+    },
+    {
+      "name": "Luis Herrera",
+      "role": "Solutions Architect",
+      "availability_notes": "Lunes a viernes de 10:00 a 18:00"
+    }
+  ],
+  "hours": {
+    "monday_to_friday": "09:00-18:00",
+    "saturday": "10:00-14:00",
+    "sunday": "Cerrado"
+  },
+  "policies": {
+    "discovery_calls": "Las llamadas nuevas requieren nombre, tipo de proyecto o necesidad, y preferencia de fecha y hora.",
+    "payments": "Las propuestas y proyectos se cotizan segun alcance; se aceptan transferencia y otros metodos acordados.",
+    "support": "Las solicitudes criticas se canalizan con el equipo humano; el bot no promete tiempos no documentados.",
+    "process": "Antes de cotizar, se valida alcance, objetivos, integraciones y prioridades del proyecto."
+  }
+}

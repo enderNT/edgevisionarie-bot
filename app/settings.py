@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     summary_refresh_char_threshold: int = 900
     memory_search_limit: int = 3
 
-    clinic_config_path: Path = Field(default=Path("config/clinic.json"))
+    company_config_path: Path = Field(default=Path("config/company.json"))
 
     memory_backend: Literal["in_memory", "mem0_local", "mem0_platform"] = "in_memory"
     mem0_api_key: str | None = None
@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     qdrant_simulate: bool = True
     qdrant_base_url: str | None = None
     qdrant_api_key: str | None = None
-    qdrant_collection_name: str = "clinic_knowledge"
+    qdrant_collection_name: str = "metaedgevisionaries_knowledge"
     qdrant_timeout_seconds: int = 10
     qdrant_top_k: int = 5
     qdrant_vector_size: int = 8

@@ -1,6 +1,6 @@
-# Clinica Assistant
+# Metaedgevisionaries Assistant
 
-Backend en Python para una clinica que recibe mensajes por webhook de Chatwoot, usa un proveedor `LLM` configurable para generacion y clasificacion de estado, orquesta con `LangGraph`, mantiene continuidad conversacional corta con estado de hilo y memoria duradera con `mem0`, y prepara recuperacion RAG con `Qdrant`.
+Backend en Python para Metaedgevisionaries que recibe mensajes por webhook de Chatwoot, usa un proveedor `LLM` configurable para generacion y clasificacion de estado, orquesta con `LangGraph`, mantiene continuidad conversacional corta con estado de hilo y memoria duradera con `mem0`, y prepara recuperacion RAG con `Qdrant`.
 
 ## Componentes
 
@@ -9,7 +9,7 @@ Backend en Python para una clinica que recibe mensajes por webhook de Chatwoot, 
 - Un proveedor `LLM` configurable como backend remoto de generacion, resumen y clasificacion de estado.
 - `mem0` para memoria duradera filtrada.
 - `Qdrant` como vector store para el nodo RAG, con modo de simulacion habilitado por defecto.
-- Configuracion local estatica para servicios, horarios, doctores y politicas, cargada solo cuando la rama de RAG o cita la necesita.
+- Configuracion local estatica para servicios, horarios, equipo y politicas, cargada solo cuando la rama de RAG o `discovery_call` la necesita.
 
 ## Setup local
 
@@ -32,7 +32,7 @@ pip install -e ".[dev]"
 cp .env.example .env
 ```
 
-4. Ajustar `config/clinic.json` con los datos reales de la clinica. Ese archivo alimenta el contexto de RAG y la extraccion de intencion de cita, no el router ni la conversacion general.
+4. Ajustar `config/company.json` con los datos reales de Metaedgevisionaries. Ese archivo alimenta el contexto de RAG y la extraccion de intencion para `discovery_call`, no el router ni la conversacion general.
 
 5. Exportar la configuracion del proveedor LLM en tu entorno:
 
@@ -65,8 +65,8 @@ Opcionalmente define `NGROK_AUTHTOKEN` y `NGROK_DOMAIN` en `.env` si quieres aut
 1. Chatwoot envia un `POST` al webhook.
 2. La API responde inmediatamente con un acuse.
 3. En segundo plano se recuperan pocas memorias relevantes de `mem0` y el estado corto del hilo viaja en `LangGraph`.
-4. Un router de estado aplica guards deterministas y, si hace falta, un clasificador LLM para decidir entre conversacion general, RAG o cita.
-5. Solo si la rama es `rag` o `appointment`, se carga `config/clinic.json` para construir el contexto clinico completo.
+4. Un router de estado aplica guards deterministas y, si hace falta, un clasificador LLM para decidir entre conversacion general, RAG o `discovery_call`.
+5. Solo si la rama es `rag` o `discovery_call`, se carga `config/company.json` para construir el contexto completo de la empresa.
 6. La respuesta se envia por la API de Chatwoot si esta habilitada; si no, queda registrada en logs.
 
 ## Git

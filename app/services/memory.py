@@ -140,10 +140,10 @@ def should_store_memory(user_message: str, assistant_message: str, route: str, s
     lowered_assistant = assistant_message.lower().strip()
     memories: list[MemoryRecord] = []
 
-    if route == "appointment":
-        slots = state.get("appointment_slots") or {}
+    if route == "discovery_call":
+        slots = state.get("discovery_call_slots") or {}
         relevant_bits = []
-        for key in ("patient_name", "reason", "preferred_date", "preferred_time"):
+        for key in ("lead_name", "project_need", "preferred_date", "preferred_time"):
             value = slots.get(key)
             if value:
                 relevant_bits.append(f"{key}={value}")
@@ -151,14 +151,14 @@ def should_store_memory(user_message: str, assistant_message: str, route: str, s
             memories.append(
                 MemoryRecord(
                     kind="profile",
-                    text="Preferencias de cita: " + ", ".join(relevant_bits),
+                    text="Preferencias para discovery call: " + ", ".join(relevant_bits),
                 )
             )
         elif lowered_user and not _is_trivial_turn(lowered_user):
             memories.append(
                 MemoryRecord(
                     kind="episode",
-                    text=f"El usuario solicito apoyo para agendar una cita: {user_message}",
+                    text=f"El usuario solicito apoyo para agendar una discovery call: {user_message}",
                 )
             )
         return memories
@@ -179,7 +179,7 @@ def should_store_memory(user_message: str, assistant_message: str, route: str, s
         memories.append(
             MemoryRecord(
                 kind="episode",
-                text=f"Consulta informativa resuelta sobre: {user_message}",
+                text=f"Consulta informativa resuelta sobre servicios o procesos: {user_message}",
             )
         )
         return memories

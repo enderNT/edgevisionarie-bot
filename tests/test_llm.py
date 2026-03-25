@@ -1,9 +1,11 @@
-import pytest
 import httpx
+import asyncio
+
+import pytest
 from openai import BadRequestError
 
 from app.models.schemas import RoutingPacket
-from app.services.llm import ClinicLLMService, OpenAICompatibleProvider, build_llm_provider
+from app.services.llm import OpenAICompatibleProvider, SupportLLMService, build_llm_provider
 from app.settings import Settings
 
 
@@ -93,8 +95,7 @@ def test_openai_compatible_provider_omits_temperature_for_gpt5_models():
     assert "temperature" not in request_kwargs
 
 
-@pytest.mark.asyncio
-async def test_openai_compatible_provider_retries_with_json_schema():
+def test_openai_compatible_provider_retries_with_json_schema():
     provider = OpenAICompatibleProvider(Settings(llm_model="local-model"))
     calls = []
 
@@ -139,18 +140,17 @@ async def test_openai_compatible_provider_retries_with_json_schema():
         {"chat": type("FakeChat", (), {"completions": FakeCompletions()})()},
     )()
 
-    payload = await provider.chat_json([{"role": "user", "content": "hola"}])
+    payload = asyncio.run(provider.chat_json([{"role": "user", "content": "hola"}]))
 
     assert payload == {"next_node": "conversation"}
     assert [call["response_format"]["type"] for call in calls] == ["json_object", "json_schema"]
 
 
-@pytest.mark.asyncio
-async def test_clinic_llm_service_uses_provider_contract_for_text():
+def test_support_llm_service_uses_provider_contract_for_text():
     provider = FakeProvider(text_response="respuesta desde provider")
-    service = ClinicLLMService(provider)
+    service = SupportLLMService(provider)
 
-    reply = await service.build_conversation_reply("Hola", ["Prefiere horario matutino"])
+    reply = asyncio.run(service.build_conversation_reply("Hola", ["Prefiere horario matutino"]))
 
     assert reply == "respuesta desde provider"
     assert len(provider.text_calls) == 1
@@ -160,18 +160,19 @@ async def test_clinic_llm_service_uses_provider_contract_for_text():
     assert messages[1]["role"] == "user"
 
 
-@pytest.mark.asyncio
-async def test_clinic_llm_service_falls_back_when_provider_json_fails():
+def test_support_llm_service_falls_back_when_provider_json_fails():
     provider = FakeProvider(error=RuntimeError("provider unavailable"))
-    service = ClinicLLMService(provider)
+    service = SupportLLMService(provider)
 
-    decision = await service.classify_state_route(
-        RoutingPacket(
-            user_message="Quiero una cita para manana",
-            active_goal="conversation",
-            stage="open",
+    decision = asyncio.run(
+        service.classify_state_route(
+            RoutingPacket(
+                user_message="Quiero agendar una llamada para manana",
+                active_goal="conversation",
+                stage="open",
+            )
         )
     )
 
-    assert decision.next_node == "appointment"
+    assert decision.next_node == "discovery_call"
     assert decision.reason == "heuristic-fallback"

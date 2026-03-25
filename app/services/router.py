@@ -6,14 +6,14 @@ from typing import Any
 
 from app.models.schemas import RoutingPacket, StateRoutingDecision
 from app.observability.flow_logger import substep
-from app.services.llm import ClinicLLMService
+from app.services.llm import SupportLLMService
 from app.settings import Settings
 
 logger = logging.getLogger(__name__)
 
 
 class StateRoutingService:
-    def __init__(self, settings: Settings, llm_service: ClinicLLMService) -> None:
+    def __init__(self, settings: Settings, llm_service: SupportLLMService) -> None:
         self._settings = settings
         self._llm_service = llm_service
 
@@ -26,7 +26,7 @@ class StateRoutingService:
         stage: str,
         pending_action: str,
         pending_question: str,
-        appointment_slots: dict[str, Any],
+        discovery_call_slots: dict[str, Any],
         last_tool_result: str,
         last_user_message: str,
         last_assistant_message: str,
@@ -39,7 +39,9 @@ class StateRoutingService:
             stage=_compact_text(stage, 80),
             pending_action=_compact_text(pending_action, 120),
             pending_question=_compact_text(pending_question, 200),
-            appointment_slots={key: _compact_text(str(value), 120) for key, value in appointment_slots.items()},
+            discovery_call_slots={
+                key: _compact_text(str(value), 120) for key, value in discovery_call_slots.items()
+            },
             last_tool_result=_compact_text(last_tool_result, 280),
             last_user_message=_compact_text(last_user_message, 280),
             last_assistant_message=_compact_text(last_assistant_message, 280),
@@ -80,32 +82,32 @@ class StateRoutingService:
                 reason="empty-message",
             )
 
-        if self._appointment_follow_up(routing_packet, user_message):
+        if self._discovery_call_follow_up(routing_packet, user_message):
             return StateRoutingDecision(
-                next_node="appointment",
-                intent="appointment",
+                next_node="discovery_call",
+                intent="discovery_call",
                 confidence=0.95,
                 needs_retrieval=False,
                 state_update={
-                    "active_goal": "appointment",
+                    "active_goal": "discovery_call",
                     "stage": "collecting_slots",
                     "pending_action": "collecting_slots",
                 },
-                reason="appointment-follow-up",
+                reason="discovery-call-follow-up",
             )
 
-        if self._explicit_appointment_request(user_message):
+        if self._explicit_discovery_call_request(user_message):
             return StateRoutingDecision(
-                next_node="appointment",
-                intent="appointment",
+                next_node="discovery_call",
+                intent="discovery_call",
                 confidence=0.92,
                 needs_retrieval=False,
                 state_update={
-                    "active_goal": "appointment",
+                    "active_goal": "discovery_call",
                     "stage": "collecting_slots",
                     "pending_action": "collecting_slots",
                 },
-                reason="appointment-request",
+                reason="discovery-call-request",
             )
 
         if self._explicit_rag_request(user_message):
@@ -136,16 +138,16 @@ class StateRoutingService:
 
         return None
 
-    def _appointment_follow_up(self, routing_packet: RoutingPacket, user_message: str) -> bool:
-        active_appointment = routing_packet.active_goal == "appointment" or routing_packet.stage in {
+    def _discovery_call_follow_up(self, routing_packet: RoutingPacket, user_message: str) -> bool:
+        active_discovery_call = routing_packet.active_goal == "discovery_call" or routing_packet.stage in {
             "collecting_slots",
             "ready_for_handoff",
         }
-        if not active_appointment:
+        if not active_discovery_call:
             return False
         if routing_packet.pending_question:
             return True
-        if routing_packet.appointment_slots and len(user_message) <= 40:
+        if routing_packet.discovery_call_slots and len(user_message) <= 40:
             return True
         return bool(
             re.search(
@@ -154,36 +156,49 @@ class StateRoutingService:
             )
         )
 
-    def _explicit_appointment_request(self, user_message: str) -> bool:
-        appointment_keywords = (
-            "cita",
+    def _explicit_discovery_call_request(self, user_message: str) -> bool:
+        discovery_call_keywords = (
             "agendar",
-            "agendo",
-            "reservar",
-            "consulta",
-            "turno",
-            "doctor",
-            "doctora",
-            "programar una visita",
+            "llamada",
+            "reunión",
+            "reunion",
+            "cotización",
+            "cotizacion",
+            "proyecto",
+            "hablar con alguien",
+            "asesoría",
+            "asesoria",
+            "demo",
+            "sesión",
+            "sesion",
         )
-        return any(keyword in user_message for keyword in appointment_keywords)
+        return any(keyword in user_message for keyword in discovery_call_keywords)
 
     def _explicit_rag_request(self, user_message: str) -> bool:
         rag_keywords = (
-            "horario",
-            "horarios",
+            "servicios",
             "precio",
+            "precios",
             "costo",
             "costos",
-            "servicio",
-            "servicios",
-            "doctor",
-            "doctores",
-            "especialidad",
-            "especialidades",
-            "direccion",
-            "ubicacion",
-            "ubicados",
+            "tiempo",
+            "tiempos",
+            "stack",
+            "tecnología",
+            "tecnologias",
+            "tecnología",
+            "integraciones",
+            "automatización",
+            "automatizacion",
+            "ia",
+            "inteligencia artificial",
+            "mantenimiento",
+            "soporte",
+            "portafolio",
+            "casos de éxito",
+            "casos de exito",
+            "horario",
+            "horarios",
             "política",
             "politica",
             "pago",
