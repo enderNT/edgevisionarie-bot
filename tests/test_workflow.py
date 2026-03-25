@@ -86,6 +86,11 @@ class FakeQdrantService:
     def __init__(self):
         self.calls = 0
 
+    async def build_context_bundle(self, *args, **kwargs):
+        self.calls += 1
+        del args, kwargs
+        return "Contexto RAG simulado", []
+
     async def build_context(self, *args, **kwargs):
         self.calls += 1
         del args, kwargs

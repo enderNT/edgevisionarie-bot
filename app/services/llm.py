@@ -494,6 +494,17 @@ class SupportLLMService:
         else:
             self._dspy_registry = DSPyProgramRegistry(enabled=False, reason="settings-not-provided")
 
+    @property
+    def backend_name(self) -> str:
+        return "dspy" if self._dspy_registry.enabled else "raw"
+
+    @property
+    def model_name(self) -> str:
+        provider_name = getattr(self._raw_backend._provider, "model_name", "")
+        if self._dspy_registry.enabled:
+            return f"{provider_name}|dspy:{self._settings.resolved_dspy_model}" if self._settings else provider_name
+        return provider_name
+
     def _should_fallback_to_raw(self) -> bool:
         return self._settings.dspy_fallback_to_raw if self._settings is not None else True
 

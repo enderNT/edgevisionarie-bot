@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
@@ -14,6 +15,7 @@ from app.services.memory import build_memory_store
 from app.services.router import StateRoutingService
 from app.services.qdrant import QdrantRetrievalService
 from app.settings import get_settings
+from app.traces import build_trace_store
 from app.webhooks.routes import build_webhook_router
 
 
@@ -32,6 +34,7 @@ def create_app() -> FastAPI:
     router_service = StateRoutingService(settings, llm_service)
     memory_store = build_memory_store(settings)
     qdrant_service = QdrantRetrievalService(settings)
+    trace_store = build_trace_store(settings)
     workflow = SupportWorkflow(
         router_service,
         llm_service,
@@ -40,9 +43,18 @@ def create_app() -> FastAPI:
         qdrant_service,
         settings,
     )
-    agent_service = AssistantService(workflow, ChatwootClient(settings))
+    agent_service = AssistantService(workflow, ChatwootClient(settings), trace_store=trace_store)
 
-    app = FastAPI(title="Metaedgevisionaries Assistant", version="0.1.0")
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        del app
+        await trace_store.start()
+        try:
+            yield
+        finally:
+            await trace_store.stop()
+
+    app = FastAPI(title="Metaedgevisionaries Assistant", version="0.1.0", lifespan=lifespan)
     app.include_router(build_webhook_router(agent_service))
 
     @app.get("/health")

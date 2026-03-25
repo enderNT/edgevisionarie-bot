@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     dspy_program_dir: Path = Field(default=Path("artifacts/dspy"))
     dspy_teleprompter: str = "MIPROv2"
     dspy_fallback_to_raw: bool = True
+    trace_capture_enabled: bool = False
+    trace_capture_database_url: str | None = None
+    trace_capture_queue_size: int = 500
+    trace_capture_batch_size: int = 25
+    trace_capture_flush_interval_ms: int = 1000
 
     openai_api_key: str | None = None
     openai_base_url: str | None = None

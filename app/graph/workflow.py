@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import logging
 from copy import deepcopy
 from typing import Any, TypedDict
@@ -15,6 +16,8 @@ from app.services.memory import MemoryStore, should_store_memory
 from app.services.qdrant import QdrantRetrievalService
 from app.services.router import StateRoutingService
 from app.settings import Settings
+from app.traces.context import get_turn_trace_context
+from app.traces.models import RagChunkSnapshot
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +66,14 @@ class SupportWorkflow:
         self._qdrant_service = qdrant_service
         self._settings = settings
         self._graph = self._build_graph()
+
+    @property
+    def llm_backend_name(self) -> str:
+        return getattr(self._llm_service, "backend_name", "raw")
+
+    @property
+    def llm_model_name(self) -> str:
+        return getattr(self._llm_service, "model_name", "")
 
     def _build_graph(self):
         graph = StateGraph(GraphState)
@@ -124,6 +135,19 @@ class SupportWorkflow:
     async def _route(self, state: GraphState) -> GraphState:
         try:
             step("2.2 state_router", "RUN", "clasificando con estado compacto")
+            routing_packet = self._router_service.build_routing_packet(
+                user_message=state["last_user_message"],
+                conversation_summary=state.get("conversation_summary", ""),
+                active_goal=state.get("active_goal", ""),
+                stage=state.get("stage", ""),
+                pending_action=state.get("pending_action", ""),
+                pending_question=state.get("pending_question", ""),
+                discovery_call_slots=state.get("discovery_call_slots", {}),
+                last_tool_result=state.get("last_tool_result", ""),
+                last_user_message=state.get("last_user_message", ""),
+                last_assistant_message=state.get("last_assistant_message", ""),
+                memories=state.get("memories", []),
+            )
             decision = await self._router_service.route_state(
                 user_message=state["last_user_message"],
                 conversation_summary=state.get("conversation_summary", ""),
@@ -137,6 +161,9 @@ class SupportWorkflow:
                 last_assistant_message=state.get("last_assistant_message", ""),
                 memories=state.get("memories", []),
             )
+            trace_context = get_turn_trace_context()
+            if trace_context is not None:
+                trace_context.capture_route(routing_packet, decision)
             merged_state = self._apply_state_update(state, decision.state_update)
             merged_state.update(
                 {
@@ -198,7 +225,7 @@ class SupportWorkflow:
             step("3.b.1 rag_node", "RUN", "consultando contexto RAG")
             company_context = self._company_config_loader.load().to_context_text()
             substep("company_config", "OK", "config estatica cargada")
-            rag_context = await self._qdrant_service.build_context(
+            rag_context, rag_results = await self._qdrant_service.build_context_bundle(
                 query=state["last_user_message"] or "contexto del usuario",
                 contact_id=state["contact_id"],
                 company_context=company_context,
@@ -210,6 +237,22 @@ class SupportWorkflow:
                 memories=state.get("memories", []),
                 company_context=rag_context,
             )
+            trace_context = get_turn_trace_context()
+            if trace_context is not None:
+                trace_context.capture_rag(
+                    company_context_hash=hashlib.sha256(company_context.encode("utf-8")).hexdigest(),
+                    retrieved_context_preview=_shorten(rag_context, 800),
+                    chunks=[
+                        RagChunkSnapshot(
+                            id=result.id,
+                            score=result.score,
+                            source=str(result.payload.get("source", "unknown")),
+                            text=str(result.payload.get("text", "")),
+                        )
+                        for result in rag_results
+                    ],
+                    assistant_answer=response_text,
+                )
             step("3.b.1 rag_node", "OK", f"chars={len(response_text)}")
             return {
                 "last_tool_result": _shorten(rag_context, 240),
@@ -227,15 +270,16 @@ class SupportWorkflow:
             step("3.c.1 discovery_call_node", "RUN", "extrayendo datos de discovery call")
             company_context = self._company_config_loader.load().to_context_text()
             substep("company_config", "OK", "config estatica cargada")
+            current_slots_before = dict(state.get("discovery_call_slots", {}))
             discovery_call, response_text = await self._llm_service.extract_discovery_call_intent(
                 user_message=state["last_user_message"],
                 memories=state.get("memories", []),
                 company_context=company_context,
                 contact_name=state["contact_name"],
-                current_slots=state.get("discovery_call_slots", {}),
+                current_slots=current_slots_before,
                 pending_question=state.get("pending_question"),
             )
-            discovery_call_slots = _merge_slots(state.get("discovery_call_slots", {}), discovery_call.model_dump())
+            discovery_call_slots = _merge_slots(current_slots_before, discovery_call.model_dump())
             missing_fields = list(discovery_call.missing_fields)
             pending_question = _build_pending_question(missing_fields) if missing_fields else ""
             stage = "collecting_slots" if missing_fields else "ready_for_handoff"
@@ -251,6 +295,15 @@ class SupportWorkflow:
                 "OK",
                 f"missing_fields={len(missing_fields)} handoff={discovery_call.should_handoff}",
             )
+            trace_context = get_turn_trace_context()
+            if trace_context is not None:
+                trace_context.capture_discovery_call(
+                    current_slots_before=current_slots_before,
+                    payload_extracted=discovery_call,
+                    slots_after_merge=discovery_call_slots,
+                    pending_question_after=pending_question,
+                    stage_after=stage,
+                )
             step("3.c.1 discovery_call_node", "OK", f"chars={len(response_text)}")
             return {
                 "response_text": response_text,

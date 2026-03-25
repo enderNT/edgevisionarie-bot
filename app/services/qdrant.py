@@ -40,7 +40,9 @@ class QdrantRetrievalService:
             return self._simulate_search(query=query, contact_id=contact_id, limit=top_k)
         return await self._http_search(query=query, contact_id=contact_id, limit=top_k)
 
-    async def build_context(self, query: str, contact_id: str, company_context: str, memories: list[str]) -> str:
+    async def build_context_bundle(
+        self, query: str, contact_id: str, company_context: str, memories: list[str]
+    ) -> tuple[str, list[QdrantSearchResult]]:
         results = await self.search(query=query, contact_id=contact_id)
         chunks = [
             "Contexto base de la empresa:",
@@ -58,7 +60,16 @@ class QdrantRetrievalService:
                 chunks.append(f"- [{result.id}] score={result.score:.3f} source={source} text={text}")
         else:
             chunks.append("- Sin resultados")
-        return "\n".join(chunks)
+        return "\n".join(chunks), results
+
+    async def build_context(self, query: str, contact_id: str, company_context: str, memories: list[str]) -> str:
+        context, _ = await self.build_context_bundle(
+            query=query,
+            contact_id=contact_id,
+            company_context=company_context,
+            memories=memories,
+        )
+        return context
 
     async def _http_search(self, query: str, contact_id: str, limit: int) -> list[QdrantSearchResult]:
         payload = {

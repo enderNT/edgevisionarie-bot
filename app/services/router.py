@@ -17,6 +17,37 @@ class StateRoutingService:
         self._settings = settings
         self._llm_service = llm_service
 
+    def build_routing_packet(
+        self,
+        *,
+        user_message: str,
+        conversation_summary: str,
+        active_goal: str,
+        stage: str,
+        pending_action: str,
+        pending_question: str,
+        discovery_call_slots: dict[str, Any],
+        last_tool_result: str,
+        last_user_message: str,
+        last_assistant_message: str,
+        memories: list[str],
+    ) -> RoutingPacket:
+        return RoutingPacket(
+            user_message=_compact_text(user_message, 400),
+            conversation_summary=_compact_text(conversation_summary, 500),
+            active_goal=_compact_text(active_goal, 80),
+            stage=_compact_text(stage, 80),
+            pending_action=_compact_text(pending_action, 120),
+            pending_question=_compact_text(pending_question, 200),
+            discovery_call_slots={
+                key: _compact_text(str(value), 120) for key, value in discovery_call_slots.items()
+            },
+            last_tool_result=_compact_text(last_tool_result, 280),
+            last_user_message=_compact_text(last_user_message, 280),
+            last_assistant_message=_compact_text(last_assistant_message, 280),
+            memories=[_compact_text(memory, 160) for memory in memories[:3]],
+        )
+
     async def route_state(
         self,
         *,
@@ -32,20 +63,18 @@ class StateRoutingService:
         last_assistant_message: str,
         memories: list[str],
     ) -> StateRoutingDecision:
-        routing_packet = RoutingPacket(
-            user_message=_compact_text(user_message, 400),
-            conversation_summary=_compact_text(conversation_summary, 500),
-            active_goal=_compact_text(active_goal, 80),
-            stage=_compact_text(stage, 80),
-            pending_action=_compact_text(pending_action, 120),
-            pending_question=_compact_text(pending_question, 200),
-            discovery_call_slots={
-                key: _compact_text(str(value), 120) for key, value in discovery_call_slots.items()
-            },
-            last_tool_result=_compact_text(last_tool_result, 280),
-            last_user_message=_compact_text(last_user_message, 280),
-            last_assistant_message=_compact_text(last_assistant_message, 280),
-            memories=[_compact_text(memory, 160) for memory in memories[:3]],
+        routing_packet = self.build_routing_packet(
+            user_message=user_message,
+            conversation_summary=conversation_summary,
+            active_goal=active_goal,
+            stage=stage,
+            pending_action=pending_action,
+            pending_question=pending_question,
+            discovery_call_slots=discovery_call_slots,
+            last_tool_result=last_tool_result,
+            last_user_message=last_user_message,
+            last_assistant_message=last_assistant_message,
+            memories=memories,
         )
         guard_hint = self._deterministic_guard(routing_packet)
         if guard_hint is not None:
