@@ -10,6 +10,7 @@ Backend en Python para Metaedgevisionaries que recibe mensajes por webhook de Ch
 - `mem0` para memoria duradera filtrada.
 - `Qdrant` como vector store para el nodo RAG, con modo de simulacion habilitado por defecto.
 - Configuracion local estatica para servicios, horarios, equipo y politicas, cargada solo cuando la rama de RAG o `discovery_call` la necesita.
+- Capa opcional de `DSPy` para encapsular, optimizar y cargar programas compilados para routing, extraction y respuestas.
 
 ## Setup local
 
@@ -59,6 +60,23 @@ make webhook-url
 Opcionalmente define `NGROK_AUTHTOKEN` y `NGROK_DOMAIN` en `.env` si quieres autenticar el agente o fijar una URL.
 
 8. Si vas a usar Qdrant real, configurar `QDRANT_ENABLED=true`, `QDRANT_SIMULATE=false` y apuntar `QDRANT_BASE_URL` al cluster o instancia local. Si no, el flujo RAG usa simulacion controlada y sigue funcionando.
+
+## DSPy
+
+- Por defecto el proyecto sigue usando el backend raw actual.
+- Si activas `DSPY_ENABLED=true`, `SupportLLMService` intentara cargar programas desde `DSPY_PROGRAM_DIR` y usarlos para:
+  - `conversation`
+  - `rag`
+  - `summary`
+  - `route`
+  - `discovery_call`
+- Si DSPy no esta disponible o un programa falla, el servicio vuelve al backend raw si `DSPY_FALLBACK_TO_RAW=true`.
+- Hay datasets seed en `datasets/dspy/` y scripts de trabajo en:
+
+```bash
+python3 scripts/dspy_compile.py route
+python3 scripts/dspy_eval.py route
+```
 
 ## Flujo
 

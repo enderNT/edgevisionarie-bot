@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     llm_model: str | None = None
     llm_timeout_seconds: int | None = None
     llm_temperature: float | None = None
+    dspy_enabled: bool = False
+    dspy_model: str | None = None
+    dspy_program_dir: Path = Field(default=Path("artifacts/dspy"))
+    dspy_teleprompter: str = "MIPROv2"
+    dspy_fallback_to_raw: bool = True
 
     openai_api_key: str | None = None
     openai_base_url: str | None = None
@@ -79,6 +84,11 @@ class Settings(BaseSettings):
         if self.llm_temperature is not None:
             return self.llm_temperature
         return self.openai_temperature
+
+    @property
+    def resolved_dspy_model(self) -> str:
+        model = self.dspy_model or self.resolved_llm_model
+        return model if "/" in model else f"openai/{model}"
 
 
 @lru_cache

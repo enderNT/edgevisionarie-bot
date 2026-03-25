@@ -7,6 +7,7 @@ from typing import Any, Literal, Protocol, TypedDict
 
 from openai import AsyncOpenAI
 
+from app.dspy.registry import DSPyProgramRegistry, build_dspy_registry
 from app.models.schemas import DiscoveryCallIntentPayload, RoutingPacket, StateRoutingDecision
 from app.observability.flow_logger import mark_error, step, substep
 from app.settings import Settings
@@ -140,7 +141,7 @@ def build_llm_provider(settings: Settings) -> LLMProvider:
     raise ValueError(f"Unsupported llm provider: {provider_name}")
 
 
-class SupportLLMService:
+class RawSupportLLMBackend:
     def __init__(self, provider: LLMProvider) -> None:
         self._provider = provider
 
@@ -474,6 +475,128 @@ class SupportLLMService:
                 "stage": routing_packet.stage or "open",
             },
             reason="heuristic-fallback",
+        )
+
+
+class SupportLLMService:
+    def __init__(
+        self,
+        provider: LLMProvider,
+        settings: Settings | None = None,
+        dspy_registry: DSPyProgramRegistry | None = None,
+    ) -> None:
+        self._raw_backend = RawSupportLLMBackend(provider)
+        self._settings = settings
+        if dspy_registry is not None:
+            self._dspy_registry = dspy_registry
+        elif settings is not None:
+            self._dspy_registry = build_dspy_registry(settings)
+        else:
+            self._dspy_registry = DSPyProgramRegistry(enabled=False, reason="settings-not-provided")
+
+    def _should_fallback_to_raw(self) -> bool:
+        return self._settings.dspy_fallback_to_raw if self._settings is not None else True
+
+    async def build_conversation_reply(self, user_message: str, memories: list[str]) -> str:
+        if self._dspy_registry.can_serve("conversation"):
+            try:
+                reply = await self._dspy_registry.conversation_reply(user_message, memories)
+                if reply:
+                    return reply
+            except Exception as exc:
+                logger.warning("DSPy conversation failed, using raw backend: %s", exc)
+                if not self._should_fallback_to_raw():
+                    raise
+        return await self._raw_backend.build_conversation_reply(user_message, memories)
+
+    async def build_rag_reply(self, user_message: str, memories: list[str], company_context: str) -> str:
+        if self._dspy_registry.can_serve("rag"):
+            try:
+                reply = await self._dspy_registry.rag_reply(user_message, memories, company_context)
+                if reply:
+                    return reply
+            except Exception as exc:
+                logger.warning("DSPy rag failed, using raw backend: %s", exc)
+                if not self._should_fallback_to_raw():
+                    raise
+        return await self._raw_backend.build_rag_reply(user_message, memories, company_context)
+
+    async def build_state_summary(
+        self,
+        current_summary: str,
+        user_message: str,
+        assistant_message: str,
+        active_goal: str,
+        stage: str,
+    ) -> str:
+        if self._dspy_registry.can_serve("summary"):
+            try:
+                summary = await self._dspy_registry.build_summary(
+                    current_summary=current_summary,
+                    user_message=user_message,
+                    assistant_message=assistant_message,
+                    active_goal=active_goal,
+                    stage=stage,
+                )
+                if summary:
+                    return summary
+            except Exception as exc:
+                logger.warning("DSPy summary failed, using raw backend: %s", exc)
+                if not self._should_fallback_to_raw():
+                    raise
+        return await self._raw_backend.build_state_summary(
+            current_summary=current_summary,
+            user_message=user_message,
+            assistant_message=assistant_message,
+            active_goal=active_goal,
+            stage=stage,
+        )
+
+    async def classify_state_route(
+        self,
+        routing_packet: RoutingPacket,
+        guard_hint: dict[str, Any] | None = None,
+    ) -> StateRoutingDecision:
+        if self._dspy_registry.can_serve("route"):
+            try:
+                return await self._dspy_registry.classify_route(routing_packet)
+            except Exception as exc:
+                logger.warning("DSPy route classification failed, using raw backend: %s", exc)
+                if not self._should_fallback_to_raw():
+                    raise
+        return await self._raw_backend.classify_state_route(routing_packet, guard_hint=guard_hint)
+
+    async def extract_discovery_call_intent(
+        self,
+        user_message: str,
+        memories: list[str],
+        company_context: str,
+        contact_name: str,
+        current_slots: dict[str, Any] | None = None,
+        pending_question: str | None = None,
+    ) -> tuple[DiscoveryCallIntentPayload, str]:
+        if self._dspy_registry.can_serve("discovery_call"):
+            try:
+                payload = await self._dspy_registry.extract_discovery_call(
+                    user_message=user_message,
+                    memories=memories,
+                    company_context=company_context,
+                    contact_name=contact_name,
+                    current_slots=current_slots,
+                    pending_question=pending_question,
+                )
+                return payload, self._raw_backend._build_discovery_call_reply(payload)
+            except Exception as exc:
+                logger.warning("DSPy discovery call extraction failed, using raw backend: %s", exc)
+                if not self._should_fallback_to_raw():
+                    raise
+        return await self._raw_backend.extract_discovery_call_intent(
+            user_message=user_message,
+            memories=memories,
+            company_context=company_context,
+            contact_name=contact_name,
+            current_slots=current_slots,
+            pending_question=pending_question,
         )
 
 

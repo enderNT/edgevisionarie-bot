@@ -176,3 +176,49 @@ def test_support_llm_service_falls_back_when_provider_json_fails():
 
     assert decision.next_node == "discovery_call"
     assert decision.reason == "heuristic-fallback"
+
+
+def test_support_llm_service_prefers_dspy_registry_when_available():
+    provider = FakeProvider(text_response="respuesta raw")
+
+    class FakeDSPyRegistry:
+        enabled = True
+
+        def can_serve(self, task):
+            return task == "conversation"
+
+        async def conversation_reply(self, user_message, memories):
+            assert user_message == "Hola"
+            assert memories == ["Prefiere horario matutino"]
+            return "respuesta dspy"
+
+    service = SupportLLMService(provider, dspy_registry=FakeDSPyRegistry())
+
+    reply = asyncio.run(service.build_conversation_reply("Hola", ["Prefiere horario matutino"]))
+
+    assert reply == "respuesta dspy"
+    assert provider.text_calls == []
+
+
+def test_support_llm_service_falls_back_to_raw_when_dspy_fails():
+    provider = FakeProvider(text_response="respuesta raw")
+
+    class FailingDSPyRegistry:
+        enabled = True
+
+        def can_serve(self, task):
+            return task == "conversation"
+
+        async def conversation_reply(self, user_message, memories):
+            raise RuntimeError("dspy failure")
+
+    service = SupportLLMService(
+        provider,
+        settings=Settings(dspy_enabled=True, dspy_fallback_to_raw=True),
+        dspy_registry=FailingDSPyRegistry(),
+    )
+
+    reply = asyncio.run(service.build_conversation_reply("Hola", ["Prefiere horario matutino"]))
+
+    assert reply == "respuesta raw"
+    assert len(provider.text_calls) == 1

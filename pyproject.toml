@@ -5,9 +5,10 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "metaedgevisionaries-assistant"
 version = "0.1.0"
-description = "Webhook clínico para Chatwoot con LangGraph, proveedor LLM configurable y memoria."
+description = "Webhook para Chatwoot con LangGraph, proveedor LLM configurable, memoria y soporte opcional para DSPy."
 requires-python = ">=3.11"
 dependencies = [
+  "dspy>=3.1.0,<4.0.0",
   "fastapi>=0.115.0,<1.0.0",
   "httpx>=0.28.0,<1.0.0",
   "langgraph>=0.3.0,<0.4.0",

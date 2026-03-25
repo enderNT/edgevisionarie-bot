@@ -28,7 +28,7 @@ def create_app() -> FastAPI:
 
     company_config_loader = CompanyConfigLoader(settings.company_config_path)
     llm_provider = build_llm_provider(settings)
-    llm_service = SupportLLMService(llm_provider)
+    llm_service = SupportLLMService(llm_provider, settings=settings)
     router_service = StateRoutingService(settings, llm_service)
     memory_store = build_memory_store(settings)
     qdrant_service = QdrantRetrievalService(settings)
