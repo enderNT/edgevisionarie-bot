@@ -7,13 +7,17 @@ APP_PORT ?= 9000
 NGROK ?= ngrok
 NGROK_AUTHTOKEN ?=
 NGROK_DOMAIN ?=
+DSPY_TASK ?= route
 
 ifneq (,$(wildcard .env))
 include .env
 export
 endif
 
-.PHONY: install run ngrok webhook-url
+.PHONY: install run ngrok webhook-url \
+	dspy-compile dspy-eval \
+	dspy-route dspy-discovery-call dspy-rag dspy-conversation dspy-summary \
+	dspy-eval-route dspy-eval-discovery-call dspy-eval-rag dspy-eval-conversation dspy-eval-summary
 
 install:
 	@test -d $(VENV_DIR) || $(PYTHON) -m venv $(VENV_DIR)
@@ -39,3 +43,39 @@ url = "http://127.0.0.1:4040/api/tunnels"; \
 data = json.load(urllib.request.urlopen(url, timeout=2)); \
 tunnels = [t.get("public_url") for t in data.get("tunnels", []) if t.get("public_url", "").startswith("https://")]; \
 print(f"{tunnels[0]}/webhooks/chatwoot") if tunnels else (_ for _ in ()).throw(SystemExit("No encontre un tunel HTTPS activo en ngrok."))'
+
+dspy-compile:
+	@$(VENV_PYTHON) scripts/dspy_compile.py $(DSPY_TASK)
+
+dspy-eval:
+	@$(VENV_PYTHON) scripts/dspy_eval.py $(DSPY_TASK)
+
+dspy-route:
+	@$(MAKE) dspy-compile DSPY_TASK=route
+
+dspy-discovery-call:
+	@$(MAKE) dspy-compile DSPY_TASK=discovery_call
+
+dspy-rag:
+	@$(MAKE) dspy-compile DSPY_TASK=rag
+
+dspy-conversation:
+	@$(MAKE) dspy-compile DSPY_TASK=conversation
+
+dspy-summary:
+	@$(MAKE) dspy-compile DSPY_TASK=summary
+
+dspy-eval-route:
+	@$(MAKE) dspy-eval DSPY_TASK=route
+
+dspy-eval-discovery-call:
+	@$(MAKE) dspy-eval DSPY_TASK=discovery_call
+
+dspy-eval-rag:
+	@$(MAKE) dspy-eval DSPY_TASK=rag
+
+dspy-eval-conversation:
+	@$(MAKE) dspy-eval DSPY_TASK=conversation
+
+dspy-eval-summary:
+	@$(MAKE) dspy-eval DSPY_TASK=summary
