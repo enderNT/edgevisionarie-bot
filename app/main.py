@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from app.graph.workflow import SupportWorkflow
 from app.observability.flow_logger import configure_flow_logger
 from app.services.assistant_service import AssistantService
+from app.services.calendly import CalendlyService
 from app.services.chatwoot import ChatwootClient
 from app.services.company_config import CompanyConfigLoader
 from app.services.llm import SupportLLMService, build_llm_provider
@@ -32,12 +33,14 @@ def create_app() -> FastAPI:
     llm_provider = build_llm_provider(settings)
     llm_service = SupportLLMService(llm_provider, settings=settings)
     router_service = StateRoutingService(settings, llm_service)
+    calendly_service = CalendlyService(settings)
     memory_store = build_memory_store(settings)
     qdrant_service = QdrantRetrievalService(settings)
     trace_store = build_trace_store(settings)
     workflow = SupportWorkflow(
         router_service,
         llm_service,
+        calendly_service,
         memory_store,
         company_config_loader,
         qdrant_service,

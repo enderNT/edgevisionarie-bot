@@ -14,13 +14,16 @@ include .env
 export
 endif
 
-.PHONY: install run ngrok webhook-url \
+.PHONY: venv install run ngrok webhook-url \
 	dspy-compile dspy-eval \
 	dspy-route dspy-discovery-call dspy-rag dspy-conversation dspy-summary \
 	dspy-eval-route dspy-eval-discovery-call dspy-eval-rag dspy-eval-conversation dspy-eval-summary
 
-install:
-	@test -d $(VENV_DIR) || $(PYTHON) -m venv $(VENV_DIR)
+venv:
+	@test -d $(VENV_DIR) || ($(PYTHON) -m venv $(VENV_DIR) && echo "✓ Virtual environment creado en $(VENV_DIR)")
+	@test -d $(VENV_DIR) && echo "✓ Virtual environment ya existe en $(VENV_DIR)"
+
+install: venv
 	@$(VENV_PIP) install -e ".[dev]"
 
 run:

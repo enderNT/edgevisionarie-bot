@@ -51,6 +51,29 @@ def test_router_keeps_discovery_call_follow_up_in_discovery_call():
     assert decision.intent == "discovery_call"
 
 
+def test_router_keeps_booking_follow_up_in_discovery_call():
+    service = build_service()
+
+    decision = asyncio.run(
+        service.route_state(
+            user_message="Si, ya elegi",
+            conversation_summary="",
+            active_goal="discovery_call",
+            stage="awaiting_calendar_choice",
+            pending_action="awaiting_calendar_choice",
+            pending_question="Ya puedes elegir un horario en Calendly.",
+            discovery_call_slots={"lead_name": "Ana", "project_need": "automatizacion"},
+            last_tool_result="",
+            last_user_message="Quiero agendar una llamada",
+            last_assistant_message="Aqui esta tu link de Calendly",
+            memories=[],
+        )
+    )
+
+    assert decision.next_node == "discovery_call"
+    assert decision.intent == "discovery_call"
+
+
 def test_router_routes_rag_requests_without_llm():
     service = build_service()
 

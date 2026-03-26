@@ -52,8 +52,8 @@ def build_trace(
             lead_name="Ana",
             project_need="automatizacion",
             preferred_date="mañana",
-            preferred_time="10 am" if stage_after == "ready_for_handoff" else None,
-            missing_fields=[] if stage_after == "ready_for_handoff" else ["preferred_time"],
+            preferred_time="10 am" if stage_after == "booking_confirmed" else None,
+            missing_fields=[],
             should_handoff=True,
             confidence=0.9,
         )
@@ -61,7 +61,7 @@ def build_trace(
             current_slots_before={"lead_name": "Ana"},
             payload_extracted=payload,
             slots_after_merge=payload.model_dump(),
-            pending_question_after="" if stage_after == "ready_for_handoff" else "Necesito la hora preferida.",
+            pending_question_after="" if stage_after == "booking_confirmed" else "Ya puedes elegir un horario en Calendly.",
             stage_after=stage_after,
         )
     context.capture_outbound(response_text="ok", sent=True)
@@ -94,7 +94,9 @@ def test_postgres_trace_store_persists_turn_traces_and_discovery_flow(tmp_path: 
     async def scenario() -> tuple[list[TurnTraceORM], list[DiscoveryCallFlowORM]]:
         await store.start()
         assert store.enqueue(build_trace(message="Quiero agendar una llamada", next_node="discovery_call", stage_after="collecting_slots").freeze())
-        assert store.enqueue(build_trace(message="mañana a las 10", next_node="discovery_call", stage_after="ready_for_handoff").freeze())
+        assert store.enqueue(
+            build_trace(message="ana@example.com", next_node="discovery_call", stage_after="booking_confirmed").freeze()
+        )
         assert store.enqueue(build_trace(message="gracias", next_node="conversation", stage_after="open").freeze())
         await store.stop()
         return await _fetch_counts(db_url)
@@ -104,8 +106,8 @@ def test_postgres_trace_store_persists_turn_traces_and_discovery_flow(tmp_path: 
     assert len(turns) == 3
     assert len(flows) == 1
     flow = flows[0]
-    assert flow.status == "ready_for_handoff"
-    assert flow.latest_stage == "ready_for_handoff"
+    assert flow.status == "booking_confirmed"
+    assert flow.latest_stage == "booking_confirmed"
     assert flow.final_payload is not None
     linked_turns = [turn for turn in turns if turn.discovery_call_flow_id == flow.id]
     assert len(linked_turns) == 2

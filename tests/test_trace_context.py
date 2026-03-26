@@ -55,7 +55,7 @@ def test_turn_trace_context_captures_route_rag_discovery_and_outbound() -> None:
         current_slots_before={"lead_name": "Ana"},
         payload_extracted=payload,
         slots_after_merge={"lead_name": "Ana", "project_need": "automatizacion"},
-        pending_question_after="Necesito la hora preferida para continuar.",
+        pending_question_after="Ya puedes elegir un horario en Calendly.",
         stage_after="collecting_slots",
     )
     context.capture_state_after(
@@ -82,7 +82,7 @@ def test_turn_trace_context_captures_route_rag_discovery_and_outbound() -> None:
     assert record.rag_trace is not None
     assert record.rag_trace.chunks[0].id == "chunk-1"
     assert record.discovery_call_trace is not None
-    assert record.discovery_call_trace.pending_question_after.startswith("Necesito la hora")
+    assert record.discovery_call_trace.pending_question_after.startswith("Ya puedes elegir")
     assert record.outbound_trace is not None
     assert record.outbound_trace.sent is True
     assert record.state_after is not None

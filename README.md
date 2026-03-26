@@ -78,6 +78,15 @@ python3 scripts/dspy_compile.py route
 python3 scripts/dspy_eval.py route
 ```
 
+## Calendly
+
+- El flujo de `discovery_call` comparte un link de Calendly cuando ya tiene nombre y necesidad del proyecto.
+- Después espera que la persona confirme que ya eligio un horario y valida la reserva por email con la API de Calendly.
+- Configuracion principal:
+  - `CALENDLY_API_TOKEN`
+  - `CALENDLY_ORGANIZATION_URI`
+  - `CALENDLY_SCHEDULING_URL`
+
 ## Flujo
 
 1. Chatwoot envia un `POST` al webhook.

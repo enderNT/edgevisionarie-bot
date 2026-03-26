@@ -2,14 +2,16 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 from copy import deepcopy
 from typing import Any, TypedDict
 
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
-from app.models.schemas import ChatwootWebhook
+from app.models.schemas import ChatwootWebhook, DiscoveryCallIntentPayload
 from app.observability.flow_logger import mark_error, step, substep
+from app.services.calendly import CalendlyService, format_calendly_time
 from app.services.company_config import CompanyConfigLoader
 from app.services.llm import SupportLLMService
 from app.services.memory import MemoryStore, should_store_memory
@@ -31,6 +33,7 @@ class GraphState(TypedDict, total=False):
     conversation_summary: str
     active_goal: str
     stage: str
+    contact_email: str
     pending_action: str
     pending_question: str
     discovery_call_slots: dict[str, Any]
@@ -54,6 +57,7 @@ class SupportWorkflow:
         self,
         router_service: StateRoutingService,
         llm_service: SupportLLMService,
+        calendly_service: CalendlyService,
         memory_store: MemoryStore,
         company_config_loader: CompanyConfigLoader,
         qdrant_service: QdrantRetrievalService,
@@ -61,6 +65,7 @@ class SupportWorkflow:
     ) -> None:
         self._router_service = router_service
         self._llm_service = llm_service
+        self._calendly_service = calendly_service
         self._memory_store = memory_store
         self._company_config_loader = company_config_loader
         self._qdrant_service = qdrant_service
@@ -108,6 +113,7 @@ class SupportWorkflow:
             "conversation_id": webhook.conversation_id,
             "contact_id": webhook.contact_id,
             "contact_name": webhook.contact_name,
+            "contact_email": webhook.contact_email or "",
             "last_user_message": webhook.latest_message,
         }
         config = {"configurable": {"thread_id": webhook.conversation_id}}
@@ -271,6 +277,16 @@ class SupportWorkflow:
             company_context = self._company_config_loader.load().to_context_text()
             substep("company_config", "OK", "config estatica cargada")
             current_slots_before = dict(state.get("discovery_call_slots", {}))
+            booking_link = self._calendly_service.scheduling_url
+            current_stage = str(state.get("stage", "") or "")
+            if current_stage in {"awaiting_calendar_choice", "awaiting_booking_confirmation", "booking_confirmed"}:
+                return await self._handle_discovery_call_booking_stage(
+                    state=state,
+                    company_context=company_context,
+                    current_slots_before=current_slots_before,
+                    booking_link=booking_link,
+                )
+
             discovery_call, response_text = await self._llm_service.extract_discovery_call_intent(
                 user_message=state["last_user_message"],
                 memories=state.get("memories", []),
@@ -278,18 +294,31 @@ class SupportWorkflow:
                 contact_name=state["contact_name"],
                 current_slots=current_slots_before,
                 pending_question=state.get("pending_question"),
+                calendly_link=booking_link,
             )
             discovery_call_slots = _merge_slots(current_slots_before, discovery_call.model_dump())
-            missing_fields = list(discovery_call.missing_fields)
-            pending_question = _build_pending_question(missing_fields) if missing_fields else ""
-            stage = "collecting_slots" if missing_fields else "ready_for_handoff"
-            pending_action = "collecting_slots" if missing_fields else ""
-            if not missing_fields:
-                response_text = (
-                    response_text
-                    + " "
-                    + "Tu solicitud quedo lista para el equipo comercial y tecnico."
-                ).strip()
+            missing_fields = [field for field in discovery_call.missing_fields if field in {"lead_name", "project_need"}]
+            if missing_fields:
+                pending_question = _build_pending_question(missing_fields)
+                stage = "collecting_slots"
+                pending_action = "collecting_slots"
+            else:
+                stage = "awaiting_calendar_choice"
+                pending_action = "awaiting_calendar_choice"
+                pending_question = "Ya puedes elegir un horario en Calendly. Cuando lo tengas, dime si ya lo reservaste."
+                response_text = await self._llm_service.build_discovery_call_booking_reply(
+                    user_message=state["last_user_message"],
+                    contact_name=state["contact_name"],
+                    calendly_link=booking_link,
+                    stage=stage,
+                )
+                discovery_call_slots = _merge_slots(
+                    discovery_call_slots,
+                    {
+                        "calendly_booking_status": stage,
+                        "calendly_booking_url": booking_link,
+                    },
+                )
             substep(
                 "discovery_call_payload",
                 "OK",
@@ -314,7 +343,10 @@ class SupportWorkflow:
                 "active_goal": "discovery_call",
                 "stage": stage,
                 "last_tool_result": _shorten(
-                    f"discovery_call missing={','.join(missing_fields) or 'none'} confidence={discovery_call.confidence:.2f}",
+                    (
+                        f"discovery_call missing={','.join(missing_fields) or 'none'} "
+                        f"confidence={discovery_call.confidence:.2f}"
+                    ),
                     200,
                 ),
                 "handoff_required": discovery_call.should_handoff,
@@ -323,6 +355,210 @@ class SupportWorkflow:
         except Exception as exc:
             mark_error("3.c.1 discovery_call_node", exc)
             raise
+
+    async def _handle_discovery_call_booking_stage(
+        self,
+        *,
+        state: GraphState,
+        company_context: str,
+        current_slots_before: dict[str, Any],
+        booking_link: str,
+    ) -> GraphState:
+        del company_context
+        user_message = state["last_user_message"]
+        contact_name = state["contact_name"]
+        contact_email = str(state.get("contact_email", "") or "")
+        current_stage = str(state.get("stage", "") or "")
+        response_text = ""
+        discovery_call_slots = dict(current_slots_before)
+        pending_action = current_stage
+
+        if current_stage == "awaiting_calendar_choice" and not self._looks_like_booking_confirmation(user_message):
+            response_text = await self._llm_service.build_discovery_call_booking_reply(
+                user_message=user_message,
+                contact_name=contact_name,
+                calendly_link=booking_link,
+                stage=current_stage,
+            )
+            discovery_call_slots = _merge_slots(
+                discovery_call_slots,
+                {
+                    "calendly_booking_status": current_stage,
+                    "calendly_booking_url": booking_link,
+                },
+            )
+            return {
+                "response_text": response_text,
+                "last_assistant_message": response_text,
+                "discovery_call_slots": discovery_call_slots,
+                "pending_question": "Ya puedes elegir un horario en Calendly. Cuando lo tengas, dime si ya lo reservaste.",
+                "pending_action": pending_action,
+                "active_goal": "discovery_call",
+                "stage": current_stage,
+                "last_tool_result": _shorten("waiting-for-calendar-choice", 200),
+                "handoff_required": False,
+                "discovery_call_payload": state.get("discovery_call_payload", {}),
+            }
+
+        booking_email = self._extract_email(user_message) or contact_email or str(discovery_call_slots.get("booking_email", "") or "")
+        if not booking_email:
+            response_text = await self._llm_service.build_discovery_call_booking_reply(
+                user_message=user_message,
+                contact_name=contact_name,
+                calendly_link=booking_link,
+                stage="awaiting_booking_confirmation",
+            )
+            discovery_call_slots = _merge_slots(
+                discovery_call_slots,
+                {
+                    "calendly_booking_status": "awaiting_booking_confirmation",
+                    "calendly_booking_url": booking_link,
+                },
+            )
+            return {
+                "response_text": response_text,
+                "last_assistant_message": response_text,
+                "discovery_call_slots": discovery_call_slots,
+                "pending_question": "Comparteme el correo con el que reservaste para validar la cita.",
+                "pending_action": "awaiting_booking_confirmation",
+                "active_goal": "discovery_call",
+                "stage": "awaiting_booking_confirmation",
+                "last_tool_result": _shorten("waiting-for-booking-email", 200),
+                "handoff_required": False,
+                "discovery_call_payload": state.get("discovery_call_payload", {}),
+            }
+
+        validation = await self._calendly_service.validate_booking_by_email(booking_email)
+        if validation.found and validation.match is not None:
+            booking_start_time = validation.match.start_time or ""
+            formatted_time = format_calendly_time(booking_start_time) if booking_start_time else ""
+            response_text = await self._llm_service.build_discovery_call_booking_reply(
+                user_message=user_message,
+                contact_name=contact_name,
+                calendly_link=booking_link,
+                stage="booking_confirmed",
+                booking_email=booking_email,
+                booking_start_time=booking_start_time,
+            )
+            discovery_call_slots = _merge_slots(
+                discovery_call_slots,
+                {
+                    "booking_email": booking_email,
+                    "calendly_booking_status": "booking_confirmed",
+                    "calendly_booking_url": booking_link,
+                    "calendly_booking_start_time": booking_start_time,
+                    "calendly_booking_event_uri": validation.match.scheduled_event_uri,
+                    "calendly_booking_invitee_uri": validation.match.invitee_uri,
+                },
+            )
+            trace_context = get_turn_trace_context()
+            if trace_context is not None:
+                trace_context.capture_discovery_call(
+                    current_slots_before=current_slots_before,
+                    payload_extracted=DiscoveryCallIntentPayload(
+                        lead_name=str(discovery_call_slots.get("lead_name") or contact_name or ""),
+                        project_need=str(discovery_call_slots.get("project_need") or ""),
+                        preferred_date=str(discovery_call_slots.get("preferred_date") or "") or None,
+                        preferred_time=str(discovery_call_slots.get("preferred_time") or "") or None,
+                        missing_fields=[],
+                        should_handoff=False,
+                        confidence=1.0,
+                    ),
+                    slots_after_merge=discovery_call_slots,
+                    pending_question_after="",
+                    stage_after="booking_confirmed",
+                )
+            last_tool_result = _shorten(
+                "booking-confirmed "
+                + " ".join(
+                    fragment
+                    for fragment in [
+                        f"email={booking_email}",
+                        f"start={formatted_time or booking_start_time}",
+                        f"event={validation.match.scheduled_event_uri}",
+                    ]
+                    if fragment
+                ),
+                240,
+            )
+            return {
+                "response_text": response_text,
+                "last_assistant_message": response_text,
+                "discovery_call_slots": discovery_call_slots,
+                "pending_question": "",
+                "pending_action": "",
+                "active_goal": "conversation",
+                "stage": "open",
+                "last_tool_result": last_tool_result,
+                "handoff_required": False,
+                "discovery_call_payload": {},
+                "next_node": "conversation",
+            }
+
+        response_text = await self._llm_service.build_discovery_call_booking_reply(
+            user_message=user_message,
+            contact_name=contact_name,
+            calendly_link=booking_link,
+            stage="awaiting_calendar_choice",
+            booking_email=booking_email,
+        )
+        if booking_email:
+            response_text = (
+                f"No encontre una reserva confirmada con {booking_email}. "
+                + response_text
+            )
+        discovery_call_slots = _merge_slots(
+            discovery_call_slots,
+            {
+                "booking_email": booking_email,
+                "calendly_booking_status": "awaiting_calendar_choice",
+                "calendly_booking_url": booking_link,
+            },
+        )
+        return {
+            "response_text": response_text,
+            "last_assistant_message": response_text,
+            "discovery_call_slots": discovery_call_slots,
+            "pending_question": "Ya puedes elegir un horario en Calendly. Cuando lo tengas, dime si ya lo reservaste.",
+            "pending_action": "awaiting_calendar_choice",
+            "active_goal": "discovery_call",
+            "stage": "awaiting_calendar_choice",
+            "last_tool_result": _shorten(f"booking-not-found email={booking_email}", 200),
+            "handoff_required": False,
+            "discovery_call_payload": state.get("discovery_call_payload", {}),
+        }
+
+    @staticmethod
+    def _looks_like_booking_confirmation(user_message: str) -> bool:
+        lowered = " ".join(user_message.lower().split())
+        return any(
+            marker in lowered
+            for marker in (
+                "ya elegi",
+                "ya elegí",
+                "ya lo reserve",
+                "ya lo reservé",
+                "ya agende",
+                "ya agendé",
+                "ya esta",
+                "ya está",
+                "si ya",
+                "sí ya",
+                "listo",
+                "confirmado",
+                "reservado",
+            )
+        ) or bool(
+            re.search(
+                r"\b(si|sí|ya|listo|confirmado|reservado|agendado|agendada)\b",
+                lowered,
+            )
+        )
+
+    @staticmethod
+    def _extract_email(user_message: str) -> str:
+        match = re.search(r"\b([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})\b", user_message)
+        return match.group(1) if match else ""
 
     async def _finalize_turn(self, state: GraphState) -> GraphState:
         try:
@@ -382,7 +618,13 @@ class SupportWorkflow:
             cleaned["pending_action"] = ""
             cleaned["pending_question"] = ""
             cleaned["discovery_call_slots"] = {}
-            if cleaned.get("stage") in {"collecting_slots", "ready_for_handoff"}:
+            if cleaned.get("stage") in {
+                "collecting_slots",
+                "awaiting_calendar_choice",
+                "awaiting_booking_confirmation",
+                "ready_for_handoff",
+                "booking_confirmed",
+            }:
                 cleaned["stage"] = "open"
             if cleaned.get("active_goal") == "discovery_call" and not cleaned.get("handoff_required", False):
                 cleaned["active_goal"] = "conversation"
@@ -397,14 +639,28 @@ class SupportWorkflow:
             return True
         if turn_count and turn_count % self._settings.summary_refresh_turn_threshold == 0:
             return True
-        if state.get("next_node") == "discovery_call" and state.get("stage") == "ready_for_handoff":
+        if state.get("next_node") == "discovery_call" and state.get("stage") in {
+            "ready_for_handoff",
+            "booking_confirmed",
+        }:
             return True
         return False
 
 
 def _merge_slots(existing: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
     merged = dict(existing)
-    for key in ("lead_name", "project_need", "preferred_date", "preferred_time"):
+    for key in (
+        "lead_name",
+        "project_need",
+        "preferred_date",
+        "preferred_time",
+        "booking_email",
+        "calendly_booking_status",
+        "calendly_booking_url",
+        "calendly_booking_start_time",
+        "calendly_booking_event_uri",
+        "calendly_booking_invitee_uri",
+    ):
         value = incoming.get(key)
         if value:
             merged[key] = value

@@ -34,6 +34,7 @@ class GraphStateSnapshot(BaseModel):
     conversation_id: str = ""
     contact_id: str = ""
     contact_name: str = ""
+    contact_email: str = ""
     last_user_message: str = ""
     last_assistant_message: str = ""
     conversation_summary: str = ""
@@ -61,6 +62,7 @@ class GraphStateSnapshot(BaseModel):
             conversation_id=str(state.get("conversation_id", "") or ""),
             contact_id=str(state.get("contact_id", "") or ""),
             contact_name=str(state.get("contact_name", "") or ""),
+            contact_email=str(state.get("contact_email", "") or ""),
             last_user_message=str(state.get("last_user_message", "") or ""),
             last_assistant_message=str(state.get("last_assistant_message", "") or ""),
             conversation_summary=str(state.get("conversation_summary", "") or ""),

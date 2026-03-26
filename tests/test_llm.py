@@ -160,6 +160,24 @@ def test_support_llm_service_uses_provider_contract_for_text():
     assert messages[1]["role"] == "user"
 
 
+def test_support_llm_service_builds_discovery_call_booking_reply():
+    provider = FakeProvider(text_response="Te comparto el link de Calendly")
+    service = SupportLLMService(provider)
+    scheduling_url = Settings().calendly_scheduling_url or "https://calendly.com/example/new-meeting"
+
+    reply = asyncio.run(
+        service.build_discovery_call_booking_reply(
+            user_message="Si, ya elegi",
+            contact_name="Ana",
+            calendly_link=scheduling_url,
+            stage="awaiting_calendar_choice",
+        )
+    )
+
+    assert reply == "Te comparto el link de Calendly"
+    assert len(provider.text_calls) == 1
+
+
 def test_support_llm_service_falls_back_when_provider_json_fails():
     provider = FakeProvider(error=RuntimeError("provider unavailable"))
     service = SupportLLMService(provider)

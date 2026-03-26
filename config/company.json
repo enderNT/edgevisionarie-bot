@@ -34,6 +34,7 @@
   },
   "policies": {
     "discovery_calls": "Las llamadas nuevas requieren nombre, tipo de proyecto o necesidad, y preferencia de fecha y hora.",
+    "calendly": "Cuando ya existe nombre y necesidad del proyecto, el asistente comparte un link de Calendly para elegir horario. Luego espera confirmacion del usuario y valida la reserva por correo antes de cerrar el flujo.",
     "payments": "Las propuestas y proyectos se cotizan segun alcance; se aceptan transferencia y otros metodos acordados.",
     "support": "Las solicitudes criticas se canalizan con el equipo humano; el bot no promete tiempos no documentados.",
     "process": "Antes de cotizar, se valida alcance, objetivos, integraciones y prioridades del proyecto."

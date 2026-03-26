@@ -112,6 +112,11 @@ class StateRoutingService:
             )
 
         if self._discovery_call_follow_up(routing_packet, user_message):
+            booking_stage = routing_packet.stage if routing_packet.stage in {
+                "awaiting_calendar_choice",
+                "awaiting_booking_confirmation",
+                "booking_confirmed",
+            } else "collecting_slots"
             return StateRoutingDecision(
                 next_node="discovery_call",
                 intent="discovery_call",
@@ -119,8 +124,9 @@ class StateRoutingService:
                 needs_retrieval=False,
                 state_update={
                     "active_goal": "discovery_call",
-                    "stage": "collecting_slots",
-                    "pending_action": "collecting_slots",
+                    "stage": booking_stage,
+                    "pending_action": booking_stage,
+                    "pending_question": routing_packet.pending_question,
                 },
                 reason="discovery-call-follow-up",
             )
@@ -170,6 +176,9 @@ class StateRoutingService:
     def _discovery_call_follow_up(self, routing_packet: RoutingPacket, user_message: str) -> bool:
         active_discovery_call = routing_packet.active_goal == "discovery_call" or routing_packet.stage in {
             "collecting_slots",
+            "awaiting_calendar_choice",
+            "awaiting_booking_confirmation",
+            "booking_confirmed",
             "ready_for_handoff",
         }
         if not active_discovery_call:

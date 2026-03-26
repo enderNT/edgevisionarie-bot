@@ -10,6 +10,7 @@ from openai import AsyncOpenAI
 from app.dspy.registry import DSPyProgramRegistry, build_dspy_registry
 from app.models.schemas import DiscoveryCallIntentPayload, RoutingPacket, StateRoutingDecision
 from app.observability.flow_logger import mark_error, step, substep
+from app.services.calendly import format_calendly_time
 from app.settings import Settings
 
 logger = logging.getLogger(__name__)
@@ -289,10 +290,13 @@ class RawSupportLLMBackend:
         contact_name: str,
         current_slots: dict[str, Any] | None = None,
         pending_question: str | None = None,
+        calendly_link: str = "",
     ) -> tuple[DiscoveryCallIntentPayload, str]:
         system_prompt = (
             "Extrae intencion para agendar una discovery call. Devuelve JSON estricto con llaves: "
-            "lead_name, project_need, preferred_date, preferred_time, missing_fields, should_handoff, confidence."
+            "lead_name, project_need, preferred_date, preferred_time, missing_fields, should_handoff, confidence. "
+            "La fecha y hora son opcionales y no deben bloquear el avance: si ya existe nombre y necesidad del proyecto, "
+            "el siguiente paso es ofrecer Calendly y esperar confirmacion del horario elegido."
         )
         user_prompt = (
             f"Nombre de contacto: {contact_name}\n"
@@ -322,8 +326,57 @@ class RawSupportLLMBackend:
                 contact_name,
                 current_slots=current_slots or {},
             )
-        reply = self._build_discovery_call_reply(discovery_call)
+        reply = self._build_discovery_call_reply(discovery_call, calendly_link=calendly_link)
         return discovery_call, reply
+
+    async def build_discovery_call_booking_reply(
+        self,
+        *,
+        user_message: str,
+        contact_name: str,
+        calendly_link: str,
+        stage: str,
+        booking_email: str | None = None,
+        booking_start_time: str | None = None,
+    ) -> str:
+        system_prompt = (
+            "Eres el asistente de discovery call de Metaedgevisionaries. "
+            "Tu objetivo es llevar al usuario a Calendly, esperar que elija un horario y luego validar la reserva. "
+            "No pidas fecha ni hora manualmente. "
+            "Si el usuario ya eligio un horario, pide o confirma el email para validarlo. "
+            "Si la cita ya quedo confirmada, responde con la confirmacion y cierra el paso."
+        )
+        user_prompt = json.dumps(
+            {
+                "user_message": user_message,
+                "contact_name": contact_name,
+                "calendly_link": calendly_link,
+                "stage": stage,
+                "booking_email": booking_email or "",
+                "booking_start_time": booking_start_time or "",
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        try:
+            substep("discovery_call_booking_prompt_compose", "OK", f"stage={stage}")
+            return await self._provider.chat_text(
+                [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=0.2,
+            )
+        except Exception as exc:
+            logger.warning("Discovery call booking reply failed, using deterministic fallback: %s", exc)
+            substep("discovery_call_booking_fallback", "WARN", f"stage={stage}")
+            return self._fallback_discovery_call_booking_reply(
+                stage=stage,
+                calendly_link=calendly_link,
+                booking_email=booking_email,
+                booking_start_time=booking_start_time,
+                contact_name=contact_name,
+            )
 
     def _fallback_discovery_call(
         self, user_message: str, contact_name: str, current_slots: dict[str, Any] | None = None
@@ -369,9 +422,9 @@ class RawSupportLLMBackend:
         if not project_need:
             missing_fields.append("project_need")
         if not preferred_date:
-            missing_fields.append("preferred_date")
+            preferred_date = None
         if not preferred_time:
-            missing_fields.append("preferred_time")
+            preferred_time = None
         return DiscoveryCallIntentPayload(
             lead_name=lead_name,
             project_need=project_need,
@@ -382,7 +435,7 @@ class RawSupportLLMBackend:
             confidence=0.65,
         )
 
-    def _build_discovery_call_reply(self, discovery_call: DiscoveryCallIntentPayload) -> str:
+    def _build_discovery_call_reply(self, discovery_call: DiscoveryCallIntentPayload, calendly_link: str = "") -> str:
         if discovery_call.missing_fields:
             field_names = {
                 "lead_name": "tu nombre",
@@ -394,12 +447,38 @@ class RawSupportLLMBackend:
             return (
                 "Puedo dejar lista tu solicitud para una discovery call. "
                 f"Para continuar necesito: {missing}. "
-                "En cuanto los compartas, genero el hand-off para el equipo comercial y tecnico."
+                "En cuanto los compartas, te paso el link de Calendly para que elijas horario."
+            )
+        if calendly_link:
+            return (
+                "Ya tengo el contexto base para tu discovery call. "
+                f"Aqui puedes ver los horarios disponibles: {calendly_link} "
+                "Cuando elijas uno, dime si ya lo reservaste y lo valido con tu correo."
             )
         return (
             "Ya tengo lo necesario para preparar tu discovery call. "
-            "La pasare al equipo comercial y tecnico con la necesidad del proyecto y tu preferencia de fecha/hora."
+            "Cuando elijas un horario, dime si ya lo reservaste y lo valido con tu correo."
         )
+
+    def _fallback_discovery_call_booking_reply(
+        self,
+        *,
+        stage: str,
+        calendly_link: str,
+        booking_email: str | None,
+        booking_start_time: str | None,
+        contact_name: str,
+    ) -> str:
+        if stage == "booking_confirmed":
+            formatted_time = format_calendly_time(booking_start_time or "")
+            if formatted_time:
+                return f"Listo, {contact_name}. Tu discovery call quedo confirmada para {formatted_time}."
+            return f"Listo, {contact_name}. Tu discovery call quedo confirmada."
+        if stage == "awaiting_booking_confirmation" and not booking_email:
+            return "Cuando ya elijas tu horario, comparteme el correo con el que lo reservaste para validarlo."
+        if calendly_link:
+            return f"Aqui puedes ver los horarios disponibles: {calendly_link} Cuando elijas uno, dime si ya lo reservaste."
+        return "Cuando elijas un horario, dime si ya lo reservaste y lo valido con tu correo."
 
     def _fallback_state_route(
         self, routing_packet: RoutingPacket, guard_hint: dict[str, Any]
@@ -585,6 +664,7 @@ class SupportLLMService:
         contact_name: str,
         current_slots: dict[str, Any] | None = None,
         pending_question: str | None = None,
+        calendly_link: str = "",
     ) -> tuple[DiscoveryCallIntentPayload, str]:
         if self._dspy_registry.can_serve("discovery_call"):
             try:
@@ -596,7 +676,7 @@ class SupportLLMService:
                     current_slots=current_slots,
                     pending_question=pending_question,
                 )
-                return payload, self._raw_backend._build_discovery_call_reply(payload)
+                return payload, self._raw_backend._build_discovery_call_reply(payload, calendly_link=calendly_link)
             except Exception as exc:
                 logger.warning("DSPy discovery call extraction failed, using raw backend: %s", exc)
                 if not self._should_fallback_to_raw():
@@ -608,6 +688,26 @@ class SupportLLMService:
             contact_name=contact_name,
             current_slots=current_slots,
             pending_question=pending_question,
+            calendly_link=calendly_link,
+        )
+
+    async def build_discovery_call_booking_reply(
+        self,
+        *,
+        user_message: str,
+        contact_name: str,
+        calendly_link: str,
+        stage: str,
+        booking_email: str | None = None,
+        booking_start_time: str | None = None,
+    ) -> str:
+        return await self._raw_backend.build_discovery_call_booking_reply(
+            user_message=user_message,
+            contact_name=contact_name,
+            calendly_link=calendly_link,
+            stage=stage,
+            booking_email=booking_email,
+            booking_start_time=booking_start_time,
         )
 
 

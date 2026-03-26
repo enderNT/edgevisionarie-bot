@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     dspy_program_dir: Path = Field(default=Path("artifacts/dspy"))
     dspy_teleprompter: str = "MIPROv2"
     dspy_fallback_to_raw: bool = True
+    calendly_api_base_url: str = "https://api.calendly.com"
+    calendly_api_token: str | None = None
+    calendly_organization_uri: str | None = None
+    calendly_scheduling_url: str | None = None
+    calendly_event_type_uri: str | None = None
+    calendly_validation_page_size: int = 20
     trace_capture_enabled: bool = False
     trace_capture_database_url: str | None = None
     trace_capture_queue_size: int = 500

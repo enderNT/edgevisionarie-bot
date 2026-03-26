@@ -125,8 +125,11 @@ class PostgresTraceStore:
             active_flow.latest_slots = (
                 record.discovery_call_trace.slots_after_merge if record.discovery_call_trace else active_flow.latest_slots
             )
-            if record.discovery_call_trace and record.discovery_call_trace.stage_after == "ready_for_handoff":
-                active_flow.status = "ready_for_handoff"
+            if record.discovery_call_trace and record.discovery_call_trace.stage_after in {
+                "ready_for_handoff",
+                "booking_confirmed",
+            }:
+                active_flow.status = record.discovery_call_trace.stage_after
                 active_flow.closed_at = record.created_at
                 active_flow.closing_turn_trace_id = turn.id
                 active_flow.final_payload = record.discovery_call_trace.payload_extracted.model_dump(mode="json")

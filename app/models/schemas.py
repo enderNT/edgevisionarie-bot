@@ -163,6 +163,16 @@ class ChatwootWebhook(BaseModel):
         )
 
     @property
+    def contact_email(self) -> str | None:
+        raw = (
+            self.contact.get("email")
+            or self.sender.get("email")
+            or self.meta.get("sender", {}).get("email")
+            or self.additional_attributes.get("contact_email")
+        )
+        return str(raw) if raw is not None else None
+
+    @property
     def latest_message(self) -> str:
         if self.content:
             return self.content.strip()

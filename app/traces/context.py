@@ -39,6 +39,7 @@ class TurnTraceContext:
                 conversation_id=webhook.conversation_id,
                 contact_id=webhook.contact_id,
                 contact_name=webhook.contact_name,
+                contact_email=webhook.contact_email or "",
                 last_user_message=webhook.latest_message,
             ),
         )
