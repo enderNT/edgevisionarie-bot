@@ -176,10 +176,10 @@ def build_workflow():
 def test_workflow_routes_to_conversation():
     workflow, memory, qdrant, llm, _ = build_workflow()
 
-    result = asyncio.run(workflow.run(build_webhook("Necesito informacion general sobre Metaedgevisionaries")))
+    result = asyncio.run(workflow.run(build_webhook("Necesito informacion general sobre ")))
 
     assert result["next_node"] == "conversation"
-    assert result["response_text"] == "Respuesta para: Necesito informacion general sobre Metaedgevisionaries"
+    assert result["response_text"] == "Respuesta para: Necesito informacion general sobre "
     assert result["handoff_required"] is False
     assert qdrant.calls == 0
     assert memory.saved

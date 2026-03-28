@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-_logger = logging.getLogger("metaedgevisionaries.router_input")
+_logger = logging.getLogger("byteworkers.router_input")
 _enabled = False
 
 

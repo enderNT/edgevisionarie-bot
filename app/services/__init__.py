@@ -1,1 +1,1 @@
-"""Service layer for the Metaedgevisionaries assistant."""
+"""Service layer for the  assistant."""

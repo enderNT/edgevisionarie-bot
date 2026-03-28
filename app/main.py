@@ -57,7 +57,7 @@ def create_app() -> FastAPI:
         finally:
             await trace_store.stop()
 
-    app = FastAPI(title="Metaedgevisionaries Assistant", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title=" Assistant", version="0.1.0", lifespan=lifespan)
     app.include_router(build_webhook_router(agent_service))
 
     @app.get("/health")

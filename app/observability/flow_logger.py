@@ -6,7 +6,7 @@ import re
 import time
 import uuid
 
-logger = logging.getLogger("metaedgevisionaries.flow")
+logger = logging.getLogger("byteworkers.flow")
 
 _flow_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("flow_id", default="-")
 _conversation_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("conversation_id", default="-")

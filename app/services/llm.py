@@ -148,16 +148,21 @@ class RawSupportLLMBackend:
 
     async def build_conversation_reply(self, user_message: str, memories: list[str]) -> str:
         system_prompt = (
-            "Eres el asistente de atencion al cliente de Metaedgevisionaries. "
-            "En conversacion general, presentate como un bot con inteligencia artificial que atiende clientes, "
-            "aclara que puede responder dudas del negocio y guiar para agendar una cita de discovery call. "
+            "Eres el asistente de atencion al cliente de ByteWorkers. "
+            "En conversacion general, presentate como un asistente virtual de ByteWorkers. "
+            "Ofrece primero que ByteWorkers puede implementar un bot conversacional con inteligencia artificial "
+            "para ayudar a cualquier negocio a atender clientes 24/7, tomar pedidos y agendar citas. "
+            "Si aplica, menciona tambien que ByteWorkers puede automatizar procesos de la empresa. "
+            "No hables de ti como si fueras ese bot implementado para el cliente. "
+            "Evita decir que solo respondes dudas sobre nuestro negocio. "
             "Responde de forma breve, clara, natural y orientada a accion."
         )
         user_prompt = (
             f"Memorias relevantes: {memories}\n"
             f"Pregunta del usuario: {user_message}\n"
-            "Responde en espanol, de forma breve y amigable. "
-            "Si es un saludo o inicio de conversacion, presentate y menciona que eres un bot de IA."
+            "Responde en español, de forma breve y amigable. "
+            "Si es un saludo o inicio de conversacion, presentate como asistente virtual y ofrece primero esas dos lineas: "
+            "implementacion de bot conversacional 24/7 para clientes, pedidos y citas, o automatizacion de procesos."
         )
         try:
             substep("conversation_prompt_compose", "OK", f"msg_chars={len(user_message)} memories={len(memories)}")
@@ -171,14 +176,14 @@ class RawSupportLLMBackend:
             logger.warning("LLM conversation failed, using deterministic fallback: %s", exc)
             substep("conversation_fallback", "WARN", "mensaje deterministico")
             return (
-                "Hola, soy el bot de atencion con inteligencia artificial de Metaedgevisionaries. "
-                "Puedo ayudarte con dudas del negocio, orientarte sobre servicios de software y guiarte para agendar "
-                "una discovery call. Si hace falta un dato puntual, lo canalizo con el equipo humano."
+                "Hola, soy el asistente virtual de ByteWorkers. "
+                "Podemos implementar un bot conversacional con IA para atender clientes 24/7, tomar pedidos y agendar citas, "
+                "o ayudarte a automatizar procesos de tu empresa. Si quieres, te digo cual de estas opciones encaja mejor contigo."
             )
 
     async def build_rag_reply(self, user_message: str, memories: list[str], company_context: str) -> str:
         system_prompt = (
-            "Eres el asistente de Metaedgevisionaries en modo RAG. Usa solo el contexto entregado y no inventes informacion. "
+            "Eres el asistente de ByteWorkers en modo RAG. Usa solo el contexto entregado y no inventes informacion. "
             "Si falta informacion, dilo claramente y escala con el equipo comercial o tecnico."
         )
         user_prompt = (
@@ -199,10 +204,9 @@ class RawSupportLLMBackend:
             logger.warning("LLM rag failed, using deterministic fallback: %s", exc)
             substep("rag_fallback", "WARN", "RAG degradado a respuesta segura")
             return (
-                "Puedo ayudarte con informacion base de Metaedgevisionaries: contamos con atencion automatizada 24/7 "
-                "mediante un bot con inteligencia artificial que responde consultas de clientes y apoya en la resolucion "
-                "de dudas operativas del negocio. Si necesitas un dato especifico que no aparezca en el contexto actual, "
-                "lo canalizo con el equipo humano."
+                "Puedo ayudarte con informacion base de ByteWorkers: implementamos atencion automatizada 24/7 "
+                "con bots conversacionales para clientes, pedidos y citas, y tambien automatizamos procesos de negocio. "
+                "Si necesitas un dato especifico que no aparezca en el contexto actual, lo canalizo con el equipo humano."
             )
 
     async def build_state_summary(
@@ -253,7 +257,7 @@ class RawSupportLLMBackend:
         guard_hint: dict[str, Any] | None = None,
     ) -> StateRoutingDecision:
         system_prompt = (
-            "Eres un clasificador de estado para el asistente de Metaedgevisionaries. "
+            "Eres un clasificador de estado para el asistente de ByteWorkers. "
             "Debes devolver JSON estricto con next_node, intent, confidence, needs_retrieval, state_update y reason. "
             "Los valores permitidos para next_node son conversation, rag, discovery_call. "
             "Usa guards y el estado para decidir continuidad conversacional."
@@ -345,7 +349,7 @@ class RawSupportLLMBackend:
         booking_start_time: str | None = None,
     ) -> str:
         system_prompt = (
-            "Eres el asistente de discovery call de Metaedgevisionaries. "
+            "Eres el asistente de discovery call de ByteWorkers. "
             "Tu objetivo es llevar al usuario a Calendly, esperar que elija un horario y luego validar la reserva. "
             "No pidas fecha ni hora manualmente. "
             "Si el usuario ya eligio un horario, pide o confirma el email para validarlo. "

@@ -60,7 +60,7 @@ class Settings(BaseSettings):
     qdrant_simulate: bool = True
     qdrant_base_url: str | None = None
     qdrant_api_key: str | None = None
-    qdrant_collection_name: str = "metaedgevisionaries_knowledge"
+    qdrant_collection_name: str = "byteworkers_knowledge"
     qdrant_timeout_seconds: int = 10
     qdrant_top_k: int = 5
     qdrant_vector_size: int = 8

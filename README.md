@@ -1,6 +1,6 @@
-# Metaedgevisionaries Assistant
+#  Assistant
 
-Backend en Python para Metaedgevisionaries que recibe mensajes por webhook de Chatwoot, usa un proveedor `LLM` configurable para generacion y clasificacion de estado, orquesta con `LangGraph`, mantiene continuidad conversacional corta con estado de hilo y memoria duradera con `mem0`, y prepara recuperacion RAG con `Qdrant`.
+Backend en Python para  que recibe mensajes por webhook de Chatwoot, usa un proveedor `LLM` configurable para generacion y clasificacion de estado, orquesta con `LangGraph`, mantiene continuidad conversacional corta con estado de hilo y memoria duradera con `mem0`, y prepara recuperacion RAG con `Qdrant`.
 
 ## Componentes
 
@@ -33,7 +33,7 @@ pip install -e ".[dev]"
 cp .env.example .env
 ```
 
-4. Ajustar `config/company.json` con los datos reales de Metaedgevisionaries. Ese archivo alimenta el contexto de RAG y la extraccion de intencion para `discovery_call`, no el router ni la conversacion general.
+4. Ajustar `config/company.json` con los datos reales de . Ese archivo alimenta el contexto de RAG y la extraccion de intencion para `discovery_call`, no el router ni la conversacion general.
 
 5. Exportar la configuracion del proveedor LLM en tu entorno:
 

@@ -1,1 +1,1 @@
-"""Metaedgevisionaries assistant application package."""
+""" assistant application package."""
