@@ -1,42 +1,50 @@
 {
-  "company_name": "",
+  "company_name": "ByteWorkers",
   "timezone": "America/Mexico_City",
   "services": [
     {
+      "name": "Bot de inteligencia artificial para atencion a clientes 24/7",
+      "summary": "Bot para atender clientes y prospectos 24/7, responder preguntas frecuentes, brindar informacion general y apoyar en el agendado de citas.",
+      "delivery_window": "Promocion vigente",
+      "starting_price": "Gratis por tiempo limitado"
+    },
+    {
+      "name": "Sistema de punto de venta con inventario",
+      "summary": "Sistema para registrar ventas, gestionar productos y controlar existencias en negocios que venden productos fisicos.",
+      "delivery_window": "Promocion vigente",
+      "starting_price": "Gratis por tiempo limitado"
+    },
+    {
       "name": "Desarrollo de software a medida",
-      "summary": "Diseno, desarrollo y evolucion de plataformas web, moviles y backoffice.",
-      "delivery_window": "6 a 16 semanas",
-      "starting_price": "Desde 60,000 MXN"
+      "summary": "Aplicaciones y sistemas a medida segun las necesidades del cliente cuando el problema no se resuelve con software generico.",
+      "delivery_window": "Segun alcance",
+      "starting_price": "Desde 5,000 MXN por alcance"
     },
     {
-      "name": "Automatizacion e IA aplicada",
-      "summary": "Automatizacion de procesos, agentes conversacionales, integraciones y flujos con IA.",
-      "delivery_window": "2 a 8 semanas",
-      "starting_price": "Desde 18,000 MXN"
+      "name": "Automatizacion de procesos",
+      "summary": "Automatizaciones para reducir tareas manuales, ahorrar tiempo y mejorar operaciones de negocio.",
+      "delivery_window": "Segun alcance",
+      "starting_price": "Desde 5,000 MXN por alcance"
     }
   ],
-  "team": [
-    {
-      "name": "Andrea Torres",
-      "role": "Strategy & Discovery",
-      "availability_notes": "Lunes a viernes de 09:00 a 17:00"
-    },
-    {
-      "name": "Luis Herrera",
-      "role": "Solutions Architect",
-      "availability_notes": "Lunes a viernes de 10:00 a 18:00"
-    }
-  ],
+  "team": [],
   "hours": {
     "monday_to_friday": "09:00-18:00",
-    "saturday": "10:00-14:00",
+    "saturday": "09:00-18:00",
     "sunday": "Cerrado"
   },
   "policies": {
-    "discovery_calls": "Las llamadas nuevas requieren nombre, tipo de proyecto o necesidad, y preferencia de fecha y hora.",
-    "calendly": "Cuando ya existe nombre y necesidad del proyecto, el asistente comparte un link de Calendly para elegir horario. Luego espera confirmacion del usuario y valida la reserva por correo antes de cerrar el flujo.",
-    "payments": "Las propuestas y proyectos se cotizan segun alcance; se aceptan transferencia y otros metodos acordados.",
-    "support": "Las solicitudes criticas se canalizan con el equipo humano; el bot no promete tiempos no documentados.",
-    "process": "Antes de cotizar, se valida alcance, objetivos, integraciones y prioridades del proyecto."
+    "offer": "Los dos productos principales actuales son el bot de atencion a clientes 24/7 y el sistema de punto de venta con inventario.",
+    "promotion": "El bot de atencion a clientes 24/7 y el sistema de punto de venta con inventario se ofrecen gratis por tiempo limitado.",
+    "promotion_scope": "La promocion gratuita aplica solo al bot de atencion a clientes 24/7 y al sistema de punto de venta con inventario.",
+    "promotion_exclusions": "La promocion no incluye desarrollo de software a medida ni automatizacion de procesos empresariales.",
+    "discovery_calls": "El objetivo inicial es conocer el caso de uso del prospecto, validar si la solucion le sirve y acordar una llamada o demostracion en un horario conveniente.",
+    "process": "Primero se conoce el caso de uso, despues se valida si hay encaje y finalmente se propone una llamada o demostracion.",
+    "pricing": "El desarrollo de software a medida y las automatizaciones suelen cotizarse en 5,000 MXN por alcance, es decir, por cada funcionalidad o requerimiento acordado desde el inicio.",
+    "scope_definition": "Un alcance es una funcionalidad, necesidad o entregable definido desde el inicio del proyecto.",
+    "bot_fit": "Se recomienda el bot cuando el negocio necesita atender mensajes, responder preguntas frecuentes, agendar citas o dar atencion continua.",
+    "pos_fit": "Se recomienda el punto de venta cuando el negocio vende productos fisicos y necesita controlar ventas, productos o inventario.",
+    "custom_fit": "Se recomienda desarrollo a medida o automatizacion cuando el negocio tiene procesos manuales, necesidades especificas o problemas que no se resuelven con software generico.",
+    "target_customers": "ByteWorkers trabaja con pequenos locales, negocios medianos y empresas grandes."
   }
 }
