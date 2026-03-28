@@ -34,16 +34,16 @@ class QdrantRetrievalService:
     def ready(self) -> bool:
         return bool(self._enabled and self._base_url and self._collection_name)
 
-    async def search(self, query: str, contact_id: str, limit: int | None = None) -> list[QdrantSearchResult]:
+    async def search(self, query: str, limit: int | None = None) -> list[QdrantSearchResult]:
         top_k = limit or self._top_k
         if self._simulate or not self.ready:
-            return self._simulate_search(query=query, contact_id=contact_id, limit=top_k)
-        return await self._http_search(query=query, contact_id=contact_id, limit=top_k)
+            return self._simulate_search(query=query, limit=top_k)
+        return await self._http_search(query=query, limit=top_k)
 
     async def build_context_bundle(
-        self, query: str, contact_id: str, company_context: str, memories: list[str]
+        self, query: str, company_context: str, memories: list[str]
     ) -> tuple[str, list[QdrantSearchResult]]:
-        results = await self.search(query=query, contact_id=contact_id)
+        results = await self.search(query=query)
         chunks = [
             "Contexto base de la empresa:",
             company_context,
@@ -62,29 +62,20 @@ class QdrantRetrievalService:
             chunks.append("- Sin resultados")
         return "\n".join(chunks), results
 
-    async def build_context(self, query: str, contact_id: str, company_context: str, memories: list[str]) -> str:
+    async def build_context(self, query: str, company_context: str, memories: list[str]) -> str:
         context, _ = await self.build_context_bundle(
             query=query,
-            contact_id=contact_id,
             company_context=company_context,
             memories=memories,
         )
         return context
 
-    async def _http_search(self, query: str, contact_id: str, limit: int) -> list[QdrantSearchResult]:
+    async def _http_search(self, query: str, limit: int) -> list[QdrantSearchResult]:
         payload = {
             "limit": limit,
             "with_payload": True,
             "with_vector": False,
-            "vector": self._fake_vector(query, contact_id),
-            "filter": {
-                "must": [
-                    {
-                        "key": "contact_id",
-                        "match": {"value": contact_id},
-                    }
-                ]
-            },
+            "vector": self._fake_vector(query),
         }
         headers = {"Content-Type": "application/json"}
         if self._api_key:
@@ -108,15 +99,14 @@ class QdrantRetrievalService:
             )
         return results
 
-    def _simulate_search(self, query: str, contact_id: str, limit: int) -> list[QdrantSearchResult]:
+    def _simulate_search(self, query: str, limit: int) -> list[QdrantSearchResult]:
         logger.info(
-            "Qdrant simulated search collection=%s contact_id=%s limit=%s query=%s",
+            "Qdrant simulated search collection=%s limit=%s query=%s",
             self._collection_name,
-            contact_id,
             limit,
             query,
         )
-        base = sha256(f"{contact_id}:{query}".encode("utf-8")).hexdigest()
+        base = sha256(query.encode("utf-8")).hexdigest()
         results: list[QdrantSearchResult] = []
         for index in range(limit):
             token = base[index * 8 : (index + 1) * 8] or base[:8]
@@ -128,7 +118,6 @@ class QdrantRetrievalService:
                     payload={
                         "text": f"Simulacion Qdrant para '{query}'",
                         "source": "simulated-vector-store",
-                        "contact_id": contact_id,
                         "collection": self._collection_name,
                         "rank": index + 1,
                     },
@@ -136,8 +125,8 @@ class QdrantRetrievalService:
             )
         return results
 
-    def _fake_vector(self, query: str, contact_id: str) -> list[float]:
-        digest = sha256(f"{contact_id}:{query}".encode("utf-8")).digest()
+    def _fake_vector(self, query: str) -> list[float]:
+        digest = sha256(query.encode("utf-8")).digest()
         vector: list[float] = []
         for index in range(self._vector_size):
             byte = digest[index % len(digest)]

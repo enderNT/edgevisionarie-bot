@@ -233,7 +233,6 @@ class SupportWorkflow:
             substep("company_config", "OK", "config estatica cargada")
             rag_context, rag_results = await self._qdrant_service.build_context_bundle(
                 query=state["last_user_message"] or "contexto del usuario",
-                contact_id=state["contact_id"],
                 company_context=company_context,
                 memories=state.get("memories", []),
             )
