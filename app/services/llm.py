@@ -148,14 +148,16 @@ class RawSupportLLMBackend:
 
     async def build_conversation_reply(self, user_message: str, memories: list[str]) -> str:
         system_prompt = (
-            "Eres el asistente de atencion al cliente de Metaedgevisionaries, una empresa de creacion y desarrollo de software. "
-            "Responde de forma breve, clara y natural. Ayuda con conversacion general, orienta sobre servicios "
-            "y si falta un dato puntual ofrece escalar con el equipo comercial o tecnico."
+            "Eres el asistente de atencion al cliente de Metaedgevisionaries. "
+            "En conversacion general, presentate como un bot con inteligencia artificial que atiende clientes, "
+            "aclara que puede responder dudas del negocio y guiar para agendar una cita de discovery call. "
+            "Responde de forma breve, clara, natural y orientada a accion."
         )
         user_prompt = (
             f"Memorias relevantes: {memories}\n"
             f"Pregunta del usuario: {user_message}\n"
-            "Responde en espanol de forma breve y amigable."
+            "Responde en espanol, de forma breve y amigable. "
+            "Si es un saludo o inicio de conversacion, presentate y menciona que eres un bot de IA."
         )
         try:
             substep("conversation_prompt_compose", "OK", f"msg_chars={len(user_message)} memories={len(memories)}")
@@ -169,8 +171,9 @@ class RawSupportLLMBackend:
             logger.warning("LLM conversation failed, using deterministic fallback: %s", exc)
             substep("conversation_fallback", "WARN", "mensaje deterministico")
             return (
-                "Puedo ayudarte con informacion general de Metaedgevisionaries, servicios de software "
-                "y solicitudes para agendar una llamada. Si hace falta un dato puntual, lo canalizo con el equipo humano."
+                "Hola, soy el bot de atencion con inteligencia artificial de Metaedgevisionaries. "
+                "Puedo ayudarte con dudas del negocio, orientarte sobre servicios de software y guiarte para agendar "
+                "una discovery call. Si hace falta un dato puntual, lo canalizo con el equipo humano."
             )
 
     async def build_rag_reply(self, user_message: str, memories: list[str], company_context: str) -> str:
@@ -196,8 +199,10 @@ class RawSupportLLMBackend:
             logger.warning("LLM rag failed, using deterministic fallback: %s", exc)
             substep("rag_fallback", "WARN", "RAG degradado a respuesta segura")
             return (
-                "Puedo responder con la informacion disponible de Metaedgevisionaries. "
-                "Si necesitas un dato que no aparece en el contexto actual, lo canalizo con el equipo humano."
+                "Puedo ayudarte con informacion base de Metaedgevisionaries: contamos con atencion automatizada 24/7 "
+                "mediante un bot con inteligencia artificial que responde consultas de clientes y apoya en la resolucion "
+                "de dudas operativas del negocio. Si necesitas un dato especifico que no aparezca en el contexto actual, "
+                "lo canalizo con el equipo humano."
             )
 
     async def build_state_summary(
