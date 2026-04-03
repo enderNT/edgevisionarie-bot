@@ -1,84 +1,60 @@
 import asyncio
 
-from app.services.memory import (
-    Mem0LocalMemoryStore,
-    Mem0PlatformMemoryStore,
-    _normalize_mem0_search_results,
-    should_store_memory,
-)
+from app.memory_runtime.runtime import ConversationMemoryRuntime
+from app.memory_runtime.store import InMemoryLongTermMemoryStore
+from app.memory_runtime.summary import LLMConversationSummaryService
+from app.memory_runtime.types import LongTermMemoryRecord, ShortTermState, TurnMemoryInput
+from app.services.barbershop_memory import BarbershopMemoryPolicy
 
 
-def test_normalize_mem0_search_results_accepts_v2_dict_shape():
-    results = {
-        "results": [
-            {"memory": "Cliente prefiere horario matutino"},
-            {"memory": "Usa WhatsApp para seguimiento"},
-            {"text": "Dato alternativo"},
-        ]
-    }
+class FakeLLMService:
+    async def build_state_summary(self, current_summary, user_message, assistant_message, active_goal, stage):
+        return f"{current_summary}|{active_goal}:{stage}|{user_message}->{assistant_message}".strip("|")
 
-    normalized = _normalize_mem0_search_results(results, limit=2)
 
-    assert normalized == [
+def test_in_memory_long_term_store_returns_recent_records():
+    store = InMemoryLongTermMemoryStore()
+
+    asyncio.run(
+        store.save(
+            "456",
+            [
+                LongTermMemoryRecord(kind="profile", text="Cliente prefiere horario matutino"),
+                LongTermMemoryRecord(kind="episode", text="Usa WhatsApp para seguimiento"),
+            ],
+        )
+    )
+
+    records = asyncio.run(store.search("456", "automatizacion con ia", limit=5))
+
+    assert [record.text for record in records] == [
         "Cliente prefiere horario matutino",
         "Usa WhatsApp para seguimiento",
     ]
 
 
-def test_normalize_mem0_search_results_accepts_list_shape():
-    results = [
-        {"memory": "Primera memoria"},
-        {"memory": "Segunda memoria"},
-    ]
+def test_barbershop_policy_skips_trivial_turns():
+    policy = BarbershopMemoryPolicy()
 
-    normalized = _normalize_mem0_search_results(results, limit=5)
+    records = policy.select_records(
+        TurnMemoryInput(user_message="hola", assistant_message="Hola, te ayudo con gusto", route="conversation"),
+        ShortTermState(),
+        {},
+    )
 
-    assert normalized == ["Primera memoria", "Segunda memoria"]
-
-
-def test_mem0_local_search_normalizes_dict_results():
-    class FakeLocalClient:
-        def search(self, query, filters, limit):
-            assert query == "automatizacion con ia"
-            assert filters == {"user_id": "456"}
-            assert limit == 3
-            return {"results": [{"memory": "Proyecto previo A"}, {"memory": "Proyecto previo B"}]}
-
-    store = object.__new__(Mem0LocalMemoryStore)
-    store._client = FakeLocalClient()
-
-    memories = asyncio.run(store.search("456", "automatizacion con ia", limit=3))
-
-    assert memories == ["Proyecto previo A", "Proyecto previo B"]
+    assert records == []
 
 
-def test_mem0_platform_search_normalizes_dict_results():
-    class FakePlatformClient:
-        def search(self, query, filters, top_k):
-            assert query == "agendar discovery call"
-            assert filters == {"user_id": "789"}
-            assert top_k == 2
-            return {"results": [{"memory": "Prefiere WhatsApp"}, {"memory": "No disponible por la tarde"}]}
+def test_barbershop_policy_persists_discovery_call_facts():
+    policy = BarbershopMemoryPolicy()
 
-    store = object.__new__(Mem0PlatformMemoryStore)
-    store._client = FakePlatformClient()
-
-    memories = asyncio.run(store.search("789", "agendar discovery call", limit=2))
-
-    assert memories == ["Prefiere WhatsApp", "No disponible por la tarde"]
-
-
-def test_should_store_memory_skips_trivial_turns():
-    memories = should_store_memory("hola", "Hola, te ayudo con gusto", "conversation", {})
-
-    assert memories == []
-
-
-def test_should_store_memory_persists_discovery_call_facts():
-    memories = should_store_memory(
-        "Quiero una llamada para automatizacion manana",
-        "Perfecto, lo paso al equipo comercial y tecnico",
-        "discovery_call",
+    records = policy.select_records(
+        TurnMemoryInput(
+            user_message="Quiero una llamada para automatizacion manana",
+            assistant_message="Perfecto, lo paso al equipo comercial y tecnico",
+            route="discovery_call",
+        ),
+        ShortTermState(),
         {
             "discovery_call_slots": {
                 "lead_name": "Juan Perez",
@@ -89,5 +65,50 @@ def test_should_store_memory_persists_discovery_call_facts():
         },
     )
 
-    assert memories
-    assert memories[0].kind == "profile"
+    assert records
+    assert records[0].kind == "profile"
+
+
+def test_conversation_memory_runtime_loads_and_commits():
+    store = InMemoryLongTermMemoryStore()
+    runtime = ConversationMemoryRuntime(
+        store=store,
+        summary_service=LLMConversationSummaryService(FakeLLMService()),
+        policy=BarbershopMemoryPolicy(),
+        recall_limit=3,
+    )
+
+    asyncio.run(store.save("789", [LongTermMemoryRecord(kind="profile", text="Prefiere WhatsApp")]))
+
+    context = asyncio.run(
+        runtime.load_context(
+            "session-1",
+            "789",
+            "agendar discovery call",
+            ShortTermState(summary="resumen previo", turn_count=2),
+        )
+    )
+    commit = asyncio.run(
+        runtime.commit_turn(
+            "session-1",
+            "789",
+            TurnMemoryInput(
+                user_message="Quiero una llamada para automatizacion",
+                assistant_message="Te comparto el siguiente paso",
+                route="discovery_call",
+            ),
+            ShortTermState(summary="resumen previo", turn_count=context.turn_count, active_goal="discovery_call", stage="collecting_slots"),
+            {
+                "discovery_call_slots": {
+                    "lead_name": "Juan Perez",
+                    "project_need": "automatizacion",
+                }
+            },
+        )
+    )
+
+    assert context.turn_count == 3
+    assert context.recalled_memories == ["Prefiere WhatsApp"]
+    assert commit.turn_count == 3
+    assert commit.summary
+    assert commit.saved_records

@@ -31,19 +31,20 @@ class WebhookSnapshot(BaseModel):
 
 
 class GraphStateSnapshot(BaseModel):
-    conversation_id: str = ""
-    contact_id: str = ""
+    session_id: str = ""
+    actor_id: str = ""
     contact_name: str = ""
     contact_email: str = ""
     last_user_message: str = ""
     last_assistant_message: str = ""
-    conversation_summary: str = ""
+    summary: str = ""
     active_goal: str = ""
     stage: str = ""
     pending_action: str = ""
     pending_question: str = ""
     discovery_call_slots: dict = Field(default_factory=dict)
     last_tool_result: str = ""
+    recalled_memories: list[str] = Field(default_factory=list)
     next_node: str = ""
     intent: str = ""
     confidence: float = 0.0
@@ -59,19 +60,20 @@ class GraphStateSnapshot(BaseModel):
     def from_mapping(cls, state: dict | None) -> "GraphStateSnapshot":
         state = state or {}
         return cls(
-            conversation_id=str(state.get("conversation_id", "") or ""),
-            contact_id=str(state.get("contact_id", "") or ""),
+            session_id=str(state.get("session_id") or state.get("conversation_id", "") or ""),
+            actor_id=str(state.get("actor_id") or state.get("contact_id", "") or ""),
             contact_name=str(state.get("contact_name", "") or ""),
             contact_email=str(state.get("contact_email", "") or ""),
             last_user_message=str(state.get("last_user_message", "") or ""),
             last_assistant_message=str(state.get("last_assistant_message", "") or ""),
-            conversation_summary=str(state.get("conversation_summary", "") or ""),
+            summary=str(state.get("summary") or state.get("conversation_summary", "") or ""),
             active_goal=str(state.get("active_goal", "") or ""),
             stage=str(state.get("stage", "") or ""),
             pending_action=str(state.get("pending_action", "") or ""),
             pending_question=str(state.get("pending_question", "") or ""),
             discovery_call_slots=dict(state.get("discovery_call_slots") or {}),
             last_tool_result=str(state.get("last_tool_result", "") or ""),
+            recalled_memories=list(state.get("recalled_memories") or state.get("memories") or []),
             next_node=str(state.get("next_node", "") or ""),
             intent=str(state.get("intent", "") or ""),
             confidence=float(state.get("confidence", 0.0) or 0.0),

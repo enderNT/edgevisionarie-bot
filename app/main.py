@@ -12,9 +12,9 @@ from app.services.calendly import CalendlyService
 from app.services.chatwoot import ChatwootClient
 from app.services.company_config import CompanyConfigLoader
 from app.services.llm import SupportLLMService, build_llm_provider
-from app.services.memory import build_memory_store
-from app.services.router import StateRoutingService
+from app.services.memory import build_conversation_memory_runtime
 from app.services.qdrant import QdrantRetrievalService
+from app.services.router import StateRoutingService
 from app.settings import get_settings
 from app.traces import build_trace_store
 from app.webhooks.routes import build_webhook_router
@@ -34,14 +34,14 @@ def create_app() -> FastAPI:
     llm_service = SupportLLMService(llm_provider, settings=settings)
     router_service = StateRoutingService(settings, llm_service)
     calendly_service = CalendlyService(settings)
-    memory_store = build_memory_store(settings)
+    memory_runtime = build_conversation_memory_runtime(settings, llm_service)
     qdrant_service = QdrantRetrievalService(settings)
     trace_store = build_trace_store(settings)
     workflow = SupportWorkflow(
         router_service,
         llm_service,
         calendly_service,
-        memory_store,
+        memory_runtime,
         company_config_loader,
         qdrant_service,
         settings,
@@ -55,6 +55,7 @@ def create_app() -> FastAPI:
         try:
             yield
         finally:
+            await memory_runtime.aclose()
             await trace_store.stop()
 
     app = FastAPI(title=" Assistant", version="0.1.0", lifespan=lifespan)

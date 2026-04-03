@@ -1,7 +1,5 @@
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
-
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -51,10 +49,9 @@ class Settings(BaseSettings):
 
     company_config_path: Path = Field(default=Path("config/company.json"))
 
-    memory_backend: Literal["in_memory", "mem0_local", "mem0_platform"] = "in_memory"
-    mem0_api_key: str | None = None
-    mem0_org_id: str | None = None
-    mem0_project_id: str | None = None
+    memory_backend: str = "langgraph_postgres"
+    memory_database_url: str | None = None
+    openai_embedding_dimensions: int = 1536
 
     qdrant_enabled: bool = False
     qdrant_simulate: bool = True
@@ -100,6 +97,19 @@ class Settings(BaseSettings):
     def resolved_dspy_model(self) -> str:
         model = self.dspy_model or self.resolved_llm_model
         return model if "/" in model else f"openai/{model}"
+
+    @property
+    def resolved_memory_backend(self) -> str:
+        backend = self.memory_backend.strip().lower()
+        if backend in {"", "postgres", "postgresql", "default"}:
+            return "langgraph_postgres"
+        if backend not in {"in_memory", "langgraph_postgres"}:
+            return "langgraph_postgres"
+        return backend
+
+    @property
+    def resolved_memory_database_url(self) -> str | None:
+        return self.memory_database_url or self.trace_capture_database_url
 
 
 @lru_cache

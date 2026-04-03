@@ -1,7 +1,11 @@
 import asyncio
 
+from app.memory_runtime.runtime import ConversationMemoryRuntime
+from app.memory_runtime.summary import LLMConversationSummaryService
+from app.memory_runtime.types import LongTermMemoryRecord
 from app.graph.workflow import SupportWorkflow
 from app.models.schemas import ChatwootWebhook, DiscoveryCallIntentPayload, StateRoutingDecision
+from app.services.barbershop_memory import BarbershopMemoryPolicy
 from app.services.calendly import CalendlyBookingMatch, CalendlyValidationResult
 from app.services.company_config import CompanyConfigLoader
 from app.services.router import StateRoutingService
@@ -124,10 +128,13 @@ class FakeMemoryStore:
 
     async def search(self, contact_id, query, limit=5):
         del contact_id, query, limit
-        return ["Recuerdo util", "Prefiere horario vespertino"]
+        return [
+            LongTermMemoryRecord(kind="episode", text="Recuerdo util"),
+            LongTermMemoryRecord(kind="profile", text="Prefiere horario vespertino"),
+        ]
 
-    async def save_memories(self, contact_id, memories):
-        self.saved.append((contact_id, [memory.model_dump() for memory in memories]))
+    async def save(self, contact_id, records):
+        self.saved.append((contact_id, [record.model_dump() for record in records]))
 
 
 class FakeQdrantService:
@@ -159,13 +166,19 @@ def build_workflow():
     llm = FakeLLMService()
     router = StateRoutingService(Settings(llm_api_key=None, openai_api_key=None), llm)
     memory = FakeMemoryStore()
+    memory_runtime = ConversationMemoryRuntime(
+        store=memory,
+        summary_service=LLMConversationSummaryService(llm),
+        policy=BarbershopMemoryPolicy(),
+        recall_limit=3,
+    )
     qdrant = FakeQdrantService()
     calendly = FakeCalendlyService()
     workflow = SupportWorkflow(
         router,
         llm,
         calendly,
-        memory,
+        memory_runtime,
         CompanyConfigLoader(config_path="config/company.json"),  # type: ignore[arg-type]
         qdrant,
         Settings(),
@@ -179,7 +192,7 @@ def test_workflow_routes_to_conversation():
     result = asyncio.run(workflow.run(build_webhook("Necesito informacion general sobre ")))
 
     assert result["next_node"] == "conversation"
-    assert result["response_text"] == "Respuesta para: Necesito informacion general sobre "
+    assert result["response_text"] == "Respuesta para: Necesito informacion general sobre"
     assert result["handoff_required"] is False
     assert qdrant.calls == 0
     assert memory.saved

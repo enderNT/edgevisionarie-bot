@@ -1,21 +1,21 @@
 # Arquitectura de estado corto y memoria duradera
 
-Este documento reemplaza el plan anterior de `semantic-router`. La implementación actual usa `LangGraph` para estado corto por `conversation_id`, `mem0` para memoria duradera filtrada y un router de estado con guards deterministas más clasificador LLM.
+Este documento reemplaza el plan anterior de `semantic-router`. La implementación actual usa `LangGraph` para estado corto por `session_id`, un runtime reusable de memoria conversacional para recall/commit y un router de estado con guards deterministas más clasificador LLM.
 
 ## Objetivo
 
 Separar responsabilidades para que el asistente funcione con tres capas distintas:
 
 - estado vivo del hilo en `LangGraph`
-- memoria duradera en `mem0`
+- memoria duradera en `LangGraph Store`
 - recuperación documental en `Qdrant`
 
 ## Flujo actual
 
-- `conversation_id` es el identificador del hilo.
-- `contact_id` sigue siendo la clave para `mem0`.
+- `session_id` es el identificador del hilo.
+- `actor_id` es la clave de memoria duradera.
 - el router decide `conversation`, `rag` o `discovery_call` usando estado compacto.
-- los nodos actualizan `active_goal`, `stage`, `pending_question`, `discovery_call_slots`, `last_tool_result` y el `conversation_summary`.
+- los nodos actualizan `active_goal`, `stage`, `pending_question`, `discovery_call_slots`, `last_tool_result` y el `summary`.
 - la memoria solo guarda hechos útiles, no el historial bruto.
 
 ## Limpieza
@@ -30,4 +30,4 @@ Separar responsabilidades para que el asistente funcione con tres capas distinta
 - preguntas informativas van a `rag`
 - saludos y conversación ligera quedan en `conversation`
 - deseos de agendar y respuestas cortas de seguimiento permanecen en `discovery_call`
-- `mem0` guarda solo recuerdos duraderos y útiles
+- el runtime guarda solo recuerdos duraderos y útiles
