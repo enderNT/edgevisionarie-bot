@@ -6,7 +6,7 @@ from app.memory_runtime.policy import MemoryPolicy
 from app.memory_runtime.types import LongTermMemoryRecord, ShortTermState, TurnMemoryInput
 
 
-class BarbershopMemoryPolicy(MemoryPolicy):
+class ByteWorkersMemoryPolicy(MemoryPolicy):
     def select_records(
         self,
         turn: TurnMemoryInput,
@@ -30,7 +30,7 @@ class BarbershopMemoryPolicy(MemoryPolicy):
                     LongTermMemoryRecord(
                         kind="profile",
                         text="Preferencias para discovery call: " + ", ".join(relevant_bits),
-                        source="barbershop-policy",
+                        source="byteworkers-policy",
                         metadata={"route": turn.route, "slots": relevant_bits},
                     )
                 )
@@ -39,7 +39,7 @@ class BarbershopMemoryPolicy(MemoryPolicy):
                     LongTermMemoryRecord(
                         kind="episode",
                         text=f"El usuario solicito apoyo para agendar una discovery call: {turn.user_message}",
-                        source="barbershop-policy",
+                        source="byteworkers-policy",
                         metadata={"route": turn.route},
                     )
                 )
@@ -53,7 +53,7 @@ class BarbershopMemoryPolicy(MemoryPolicy):
                 LongTermMemoryRecord(
                     kind="profile",
                     text=f"Preferencia del usuario: {turn.user_message}",
-                    source="barbershop-policy",
+                    source="byteworkers-policy",
                     metadata={"route": turn.route},
                 )
             )
@@ -64,7 +64,7 @@ class BarbershopMemoryPolicy(MemoryPolicy):
                 LongTermMemoryRecord(
                     kind="episode",
                     text=f"Consulta informativa resuelta sobre servicios o procesos: {turn.user_message}",
-                    source="barbershop-policy",
+                    source="byteworkers-policy",
                     metadata={"route": turn.route},
                 )
             )
@@ -75,7 +75,7 @@ class BarbershopMemoryPolicy(MemoryPolicy):
                 LongTermMemoryRecord(
                     kind="episode",
                     text=f"Conversacion util: {turn.user_message} -> {turn.assistant_message}",
-                    source="barbershop-policy",
+                    source="byteworkers-policy",
                     metadata={"route": turn.route},
                 )
             )

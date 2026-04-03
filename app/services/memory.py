@@ -5,7 +5,7 @@ from app.memory_runtime import (
     LLMConversationSummaryService,
     build_long_term_memory_store,
 )
-from app.services.barbershop_memory import BarbershopMemoryPolicy
+from app.services.byteworkers_memory import ByteWorkersMemoryPolicy
 from app.services.llm import SupportLLMService
 from app.settings import Settings
 
@@ -17,6 +17,6 @@ def build_conversation_memory_runtime(
     return ConversationMemoryRuntime(
         store=build_long_term_memory_store(settings),
         summary_service=LLMConversationSummaryService(llm_service),
-        policy=BarbershopMemoryPolicy(),
+        policy=ByteWorkersMemoryPolicy(),
         recall_limit=settings.memory_search_limit,
     )

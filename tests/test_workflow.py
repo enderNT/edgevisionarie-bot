@@ -5,7 +5,7 @@ from app.memory_runtime.summary import LLMConversationSummaryService
 from app.memory_runtime.types import LongTermMemoryRecord
 from app.graph.workflow import SupportWorkflow
 from app.models.schemas import ChatwootWebhook, DiscoveryCallIntentPayload, StateRoutingDecision
-from app.services.barbershop_memory import BarbershopMemoryPolicy
+from app.services.byteworkers_memory import ByteWorkersMemoryPolicy
 from app.services.calendly import CalendlyBookingMatch, CalendlyValidationResult
 from app.services.company_config import CompanyConfigLoader
 from app.services.router import StateRoutingService
@@ -169,7 +169,7 @@ def build_workflow():
     memory_runtime = ConversationMemoryRuntime(
         store=memory,
         summary_service=LLMConversationSummaryService(llm),
-        policy=BarbershopMemoryPolicy(),
+        policy=ByteWorkersMemoryPolicy(),
         recall_limit=3,
     )
     qdrant = FakeQdrantService()

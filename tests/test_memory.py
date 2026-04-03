@@ -4,7 +4,7 @@ from app.memory_runtime.runtime import ConversationMemoryRuntime
 from app.memory_runtime.store import InMemoryLongTermMemoryStore
 from app.memory_runtime.summary import LLMConversationSummaryService
 from app.memory_runtime.types import LongTermMemoryRecord, ShortTermState, TurnMemoryInput
-from app.services.barbershop_memory import BarbershopMemoryPolicy
+from app.services.byteworkers_memory import ByteWorkersMemoryPolicy
 
 
 class FakeLLMService:
@@ -33,8 +33,8 @@ def test_in_memory_long_term_store_returns_recent_records():
     ]
 
 
-def test_barbershop_policy_skips_trivial_turns():
-    policy = BarbershopMemoryPolicy()
+def test_byteworkers_policy_skips_trivial_turns():
+    policy = ByteWorkersMemoryPolicy()
 
     records = policy.select_records(
         TurnMemoryInput(user_message="hola", assistant_message="Hola, te ayudo con gusto", route="conversation"),
@@ -45,8 +45,8 @@ def test_barbershop_policy_skips_trivial_turns():
     assert records == []
 
 
-def test_barbershop_policy_persists_discovery_call_facts():
-    policy = BarbershopMemoryPolicy()
+def test_byteworkers_policy_persists_discovery_call_facts():
+    policy = ByteWorkersMemoryPolicy()
 
     records = policy.select_records(
         TurnMemoryInput(
@@ -74,7 +74,7 @@ def test_conversation_memory_runtime_loads_and_commits():
     runtime = ConversationMemoryRuntime(
         store=store,
         summary_service=LLMConversationSummaryService(FakeLLMService()),
-        policy=BarbershopMemoryPolicy(),
+        policy=ByteWorkersMemoryPolicy(),
         recall_limit=3,
     )
 

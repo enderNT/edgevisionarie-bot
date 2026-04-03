@@ -81,7 +81,7 @@ class SupportWorkflow:
     def llm_model_name(self) -> str:
         return getattr(self._llm_service, "model_name", "")
 
-    def _build_graph(self):
+    def _build_graph(self, checkpointer: Any | None = None):
         graph = StateGraph(GraphState)
         graph.add_node("load_context", self._load_context)
         graph.add_node("route", self._route)
@@ -105,7 +105,10 @@ class SupportWorkflow:
         graph.add_edge("rag", "finalize_turn")
         graph.add_edge("discovery_call", "finalize_turn")
         graph.add_edge("finalize_turn", END)
-        return graph.compile(checkpointer=MemorySaver())
+        return graph.compile(checkpointer=checkpointer or MemorySaver())
+
+    def set_checkpointer(self, checkpointer: Any) -> None:
+        self._graph = self._build_graph(checkpointer=checkpointer)
 
     async def run(self, webhook: ChatwootWebhook) -> GraphState:
         initial_state: GraphState = {

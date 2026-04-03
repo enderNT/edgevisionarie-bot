@@ -51,6 +51,7 @@ class Settings(BaseSettings):
 
     memory_backend: str = "langgraph_postgres"
     memory_database_url: str | None = None
+    checkpoint_database_url: str | None = None
     openai_embedding_dimensions: int = 1536
 
     qdrant_enabled: bool = False
@@ -110,6 +111,10 @@ class Settings(BaseSettings):
     @property
     def resolved_memory_database_url(self) -> str | None:
         return self.memory_database_url or self.trace_capture_database_url
+
+    @property
+    def resolved_checkpoint_database_url(self) -> str | None:
+        return self.checkpoint_database_url or self.memory_database_url or self.trace_capture_database_url
 
 
 @lru_cache

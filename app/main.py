@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from app.checkpointing import build_checkpointer
 from app.graph.workflow import SupportWorkflow
 from app.observability.flow_logger import configure_flow_logger
 from app.services.assistant_service import AssistantService
@@ -51,12 +52,14 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         del app
-        await trace_store.start()
-        try:
-            yield
-        finally:
-            await memory_runtime.aclose()
-            await trace_store.stop()
+        async with build_checkpointer(settings) as checkpointer:
+            workflow.set_checkpointer(checkpointer)
+            await trace_store.start()
+            try:
+                yield
+            finally:
+                await memory_runtime.aclose()
+                await trace_store.stop()
 
     app = FastAPI(title=" Assistant", version="0.1.0", lifespan=lifespan)
     app.include_router(build_webhook_router(agent_service))
